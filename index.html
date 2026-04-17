@@ -91,19 +91,26 @@
     padding: 24px 20px 22px;
     border-bottom: 1px solid var(--line-soft);
   }
-  .brand-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; gap: 12px; }
+  .brand-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; gap: 12px; }
   .brand-lockup { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
 
-  /* Logo oficial (si logo.png está disponible) */
-  .brand-logo-img {
-    height: 52px; width: auto; max-width: 240px;
-    object-fit: contain; object-position: left center;
+  /* Logo oficial en contenedor blanco */
+  .brand-logo-wrap {
     display: none;
-    /* mix-blend-mode hace que el fondo blanco del JPG/PNG se funda con el fondo crema */
-    mix-blend-mode: multiply;
+    align-items: center;
+    padding: 10px 14px;
+    background: #FFFFFF;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04);
   }
-  .brand-logo-img.loaded { display: block; }
-  .brand-logo-img.loaded ~ .brand-fallback { display: none; }
+  .brand-logo-wrap.loaded { display: inline-flex; }
+  .brand-logo-wrap.loaded ~ .brand-fallback { display: none; }
+  .brand-logo-img {
+    height: 44px; width: auto; max-width: 180px;
+    object-fit: contain; object-position: left center;
+    display: block;
+  }
 
   /* Fallback cuando no hay logo.png */
   .brand-fallback { display: flex; align-items: center; gap: 12px; min-width: 0; }
@@ -853,9 +860,11 @@ function renderHeader() {
     <header class="header">
       <div class="brand-row">
         <div class="brand-lockup">
-          <img class="brand-logo-img" src="logo.png" alt="La Regional de Seguros"
-               onload="this.classList.add('loaded')"
-               onerror="this.remove()">
+          <div class="brand-logo-wrap">
+            <img class="brand-logo-img" src="logo.png" alt="La Regional de Seguros"
+                 onload="this.parentElement.classList.add('loaded')"
+                 onerror="this.parentElement.remove()">
+          </div>
           <div class="brand-fallback">
             <div class="brand-mark">
               <span class="brand-mark-text">LR</span>
