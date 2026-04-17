@@ -88,16 +88,19 @@
 
   /* ============ HEADER ============ */
   .header {
-    padding: 22px 20px 22px;
+    padding: 24px 20px 22px;
     border-bottom: 1px solid var(--line-soft);
   }
-  .brand-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+  .brand-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; gap: 12px; }
   .brand-lockup { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
 
   /* Logo oficial (si logo.png está disponible) */
   .brand-logo-img {
-    height: 42px; width: auto; max-width: 210px;
-    object-fit: contain; display: none;
+    height: 52px; width: auto; max-width: 240px;
+    object-fit: contain; object-position: left center;
+    display: none;
+    /* mix-blend-mode hace que el fondo blanco del JPG/PNG se funda con el fondo crema */
+    mix-blend-mode: multiply;
   }
   .brand-logo-img.loaded { display: block; }
   .brand-logo-img.loaded ~ .brand-fallback { display: none; }
@@ -671,8 +674,8 @@
 
 <script>
 /* ============ STATE ============ */
-const STORAGE_KEY = 'lrds_inspect_v3';
-const TOTAL_STEPS = 4;
+const STORAGE_KEY = 'lrds_inspect_v4';
+const TOTAL_STEPS = 5;
 
 const state = {
   step: 1,
@@ -714,22 +717,27 @@ const state = {
 
 const HEROES = {
   1: {
-    eyebrow: "PASO 1 DE 4",
+    eyebrow: "PASO 1 DE 5",
     get title() { return `Hola, ${state.cliente.nombre.split(" ")[0]}`; },
-    subtitle: "Bienvenido al proceso de inspección. Primero confirma que tus datos sean correctos.",
+    subtitle: "Bienvenido al proceso de inspección digital. Así es como funciona.",
   },
   2: {
-    eyebrow: "PASO 2 DE 4",
+    eyebrow: "PASO 2 DE 5",
+    title: "Información personal",
+    subtitle: "Confirma que tus datos personales sean correctos.",
+  },
+  3: {
+    eyebrow: "PASO 3 DE 5",
     title: "Datos del vehículo",
     subtitle: "Verifica que la información de tu auto coincida con la póliza.",
   },
-  3: {
-    eyebrow: "PASO 3 DE 4",
+  4: {
+    eyebrow: "PASO 4 DE 5",
     title: "Toma 6 fotografías",
     subtitle: "Captura tu vehículo desde distintos ángulos con la cámara de tu teléfono.",
   },
-  4: {
-    eyebrow: "PASO 4 DE 4",
+  5: {
+    eyebrow: "PASO 5 DE 5",
     title: "Revisa y envía",
     subtitle: "Último paso. Verifica las fotografías y autoriza el envío de tu inspección.",
   },
@@ -823,6 +831,7 @@ function render() {
         ${state.step === 2 ? renderStep2() : ""}
         ${state.step === 3 ? renderStep3() : ""}
         ${state.step === 4 ? renderStep4() : ""}
+        ${state.step === 5 ? renderStep5() : ""}
       </div>
     </div>
     ${renderFooterNav()}
@@ -863,9 +872,8 @@ function renderHeader() {
     </header>`;
 }
 
-/* ============ PASO 1 · TÚ ============ */
+/* ============ PASO 1 · BIENVENIDA ============ */
 function renderStep1() {
-  const c = state.cliente;
   const k = state.caso;
   return `
     <!-- Caso / Cotización -->
@@ -893,7 +901,6 @@ function renderStep1() {
     <section class="section">
       <div class="section-head">
         <div class="section-title">
-          <span class="section-num">00</span>
           <h2 class="serif">Así funciona</h2>
         </div>
       </div>
@@ -907,40 +914,21 @@ function renderStep1() {
       </div>
 
       <div class="process-card">
-        ${processStep(1, icon("fileText",20), "Confirma tus datos", "Verifica tu información personal.")}
+        ${processStep(1, icon("user",20),     "Confirma tus datos", "Verifica tu información personal.")}
         ${processStep(2, icon("car",20),      "Confirma tu vehículo", "Revisa los datos del auto.")}
         ${processStep(3, icon("camera",20),   "Toma 6 fotografías", "Captura tu auto desde distintos ángulos.")}
         ${processStep(4, icon("sendIcon",20), "Envía tu solicitud", "Autoriza con tu aceptación y listo.")}
       </div>
+    </section>
 
+    <!-- Protección de datos -->
+    <section class="section">
       <div class="trust-box">
         <div class="trust-icon">${icon("shield", 20, { sw: 2 })}</div>
         <div>
           <div class="trust-title">Tu información está protegida</div>
           <div class="trust-text">La Regional de Seguros usa tu información únicamente para esta inspección, bajo las normas vigentes de protección de datos personales.</div>
         </div>
-      </div>
-    </section>
-
-    <!-- Datos del cliente -->
-    <section class="section">
-      <div class="section-head">
-        <div class="section-title">
-          <span class="section-num">01</span>
-          <h2 class="serif">Información personal</h2>
-        </div>
-      </div>
-      <div class="data-card">
-        ${dataRow(icon("user", 18), "Nombre completo", esc(c.nombre))}
-        ${dataRow(icon("fileText", 18), c.tipoId, `<span class="mono">${esc(c.numeroId)}</span>`)}
-        ${dataRow(icon("phone", 18), "Teléfono", `<span class="with-flag"><span class="flag">🇵🇦</span><span class="ccode">+507</span><span class="phone-num">${esc(c.telefono)}</span></span>`)}
-        ${dataRow(icon("mail", 18), "Correo electrónico", esc(c.email))}
-        ${dataRow(icon("mapPin", 18), "Dirección", esc(c.direccion))}
-      </div>
-
-      <div class="data-note">
-        <div class="data-note-icon">${icon("info", 16, { sw: 2 })}</div>
-        <div>¿Hay un error en tus datos? No envíes la inspección y <a onclick="openHelp()">contáctanos</a> para corregirlo.</div>
       </div>
     </section>
   `;
@@ -964,17 +952,32 @@ function dataRow(iconHtml, label, value) {
   </div>`;
 }
 
-/* ============ PASO 2 · AUTO ============ */
+/* ============ PASO 2 · INFORMACIÓN PERSONAL ============ */
 function renderStep2() {
+  const c = state.cliente;
+  return `
+    <section class="section">
+      <div class="data-card">
+        ${dataRow(icon("user", 18), "Nombre completo", esc(c.nombre))}
+        ${dataRow(icon("fileText", 18), c.tipoId, `<span class="mono">${esc(c.numeroId)}</span>`)}
+        ${dataRow(icon("phone", 18), "Teléfono", `<span class="with-flag"><span class="flag">🇵🇦</span><span class="ccode">+507</span><span class="phone-num">${esc(c.telefono)}</span></span>`)}
+        ${dataRow(icon("mail", 18), "Correo electrónico", esc(c.email))}
+        ${dataRow(icon("mapPin", 18), "Dirección", esc(c.direccion))}
+      </div>
+
+      <div class="data-note">
+        <div class="data-note-icon">${icon("info", 16, { sw: 2 })}</div>
+        <div>¿Hay un error en tus datos? No envíes la inspección y <a onclick="openHelp()">contáctanos</a> para corregirlo.</div>
+      </div>
+    </section>
+  `;
+}
+
+/* ============ PASO 3 · DATOS DEL VEHÍCULO ============ */
+function renderStep3() {
   const v = state.vehiculo;
   return `
     <section class="section">
-      <div class="section-head">
-        <div class="section-title">
-          <span class="section-num">01</span>
-          <h2 class="serif">Información del vehículo</h2>
-        </div>
-      </div>
       <div class="data-card">
         ${dataRow(icon("car", 18), "Vehículo", `${esc(v.marca)} ${esc(v.modelo)} · ${esc(v.anio)}`)}
         ${dataRow(icon("key", 18), "Placa", `<span class="mono">${esc(v.placa)}</span>`)}
@@ -992,15 +995,14 @@ function renderStep2() {
   `;
 }
 
-/* ============ PASO 3 · FOTOS ============ */
-function renderStep3() {
+/* ============ PASO 4 · FOTOS ============ */
+function renderStep4() {
   const done = state.photos.filter(p => p.status === "done").length;
   const pct = Math.round((done / state.photos.length) * 100);
   return `
     <section class="section">
       <div class="section-head">
         <div class="section-title">
-          <span class="section-num">01</span>
           <h2 class="serif">Captura tu vehículo</h2>
         </div>
         <span class="section-meta">${done} de 6</span>
@@ -1038,19 +1040,12 @@ function renderStep3() {
     </section>`;
 }
 
-/* ============ PASO 4 · ENVIAR ============ */
-function renderStep4() {
+/* ============ PASO 5 · ENVIAR ============ */
+function renderStep5() {
   const done = state.photos.filter(p => p.status === "done").length;
   const complete = done === 6;
   return `
     <section class="section">
-      <div class="section-head">
-        <div class="section-title">
-          <span class="section-num">01</span>
-          <h2 class="serif">Confirma el envío</h2>
-        </div>
-      </div>
-
       <div class="response-card">
         <div class="response-icon">${icon("clock", 18, { sw: 2 })}</div>
         <div>
@@ -1061,9 +1056,15 @@ function renderStep4() {
 
       ${!complete ? `<div class="warning-box">
         <div class="warning-icon">${icon("info", 18, { sw: 2 })}</div>
-        <div class="warning-text"><strong style="font-weight:600">Faltan ${6 - done} fotografías.</strong> Debes completar las 6 antes de enviar. <a onclick="goTo(3)">Volver a fotos</a></div>
+        <div class="warning-text"><strong style="font-weight:600">Faltan ${6 - done} fotografías.</strong> Debes completar las 6 antes de enviar. <a onclick="goTo(4)">Volver a fotos</a></div>
       </div>` : ""}
 
+      <div class="section-head" style="margin-top:8px">
+        <div class="section-title">
+          <h2 class="serif">Fotografías capturadas</h2>
+        </div>
+        <span class="section-meta">${done} de 6</span>
+      </div>
       <div class="photo-gallery">
         ${state.photos.map(p => {
           const c = p.status === "done";
@@ -1075,7 +1076,6 @@ function renderStep4() {
     <section class="section">
       <div class="section-head">
         <div class="section-title">
-          <span class="section-num">02</span>
           <h2 class="serif">Autorización</h2>
         </div>
       </div>
