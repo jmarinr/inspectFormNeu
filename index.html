@@ -92,7 +92,19 @@
     border-bottom: 1px solid var(--line-soft);
   }
   .brand-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
-  .brand-lockup { display: flex; align-items: center; gap: 12px; }
+  .brand-lockup { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
+
+  /* Logo oficial (si logo.png está disponible) */
+  .brand-logo-img {
+    height: 42px; width: auto; max-width: 210px;
+    object-fit: contain; display: none;
+  }
+  .brand-logo-img.loaded { display: block; }
+  .brand-logo-img.loaded ~ .brand-fallback { display: none; }
+
+  /* Fallback cuando no hay logo.png */
+  .brand-fallback { display: flex; align-items: center; gap: 12px; min-width: 0; }
+
   .brand-mark {
     width: 46px; height: 46px; border-radius: 12px;
     background: var(--accent); color: #FFF;
@@ -108,8 +120,9 @@
   }
   .brand-mark-text {
     font-family: "Instrument Serif", serif;
-    font-size: 26px; line-height: 1; letter-spacing: -0.02em;
+    font-size: 22px; line-height: 1; letter-spacing: -0.04em;
     position: relative; z-index: 1;
+    font-weight: 400;
   }
   .brand-name {
     font-family: "Instrument Serif", serif;
@@ -183,6 +196,46 @@
   .section-num { font-family: "JetBrains Mono", monospace; font-size: 13px; color: var(--ink-faint); font-weight: 500; }
   .section-head h2 { font-family: "Instrument Serif", serif; font-size: 24px; }
   .section-meta { font-size: 12px; color: var(--ink-faint); font-weight: 500; white-space: nowrap; }
+
+  /* ============ CASE INFO CARD ============ */
+  .case-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--accent);
+    border-radius: 14px;
+    padding: 16px 18px;
+    margin-bottom: 20px;
+  }
+  .case-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; letter-spacing: 0.1em;
+    color: var(--accent); font-weight: 600;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .case-number {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 18px; color: var(--ink);
+    font-weight: 500; letter-spacing: -0.01em;
+    margin-bottom: 6px;
+    word-break: break-all;
+  }
+  .case-meta-row {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; color: var(--ink-soft);
+    margin-bottom: 3px;
+    flex-wrap: wrap;
+  }
+  .case-meta-row:last-child { margin-bottom: 0; }
+  .case-meta-label {
+    font-size: 11px; color: var(--ink-faint);
+    font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .case-dot {
+    width: 3px; height: 3px; border-radius: 50%;
+    background: var(--ink-faint); opacity: .6;
+  }
 
   /* ============ TIME BANNER + PROCESS ============ */
   .time-banner {
@@ -553,9 +606,9 @@
 <body>
 <div class="top-brand-strip">
   <div class="top-brand-inner">
-    <span>La Regional de Seguros</span>
+    <span class="top-brand-pa">🇵🇦 Panamá</span>
     <span class="top-brand-dot"></span>
-    <span class="top-brand-pa">Panamá 🇵🇦</span>
+    <span>Inspección digital de vehículo</span>
   </div>
 </div>
 <div id="app"></div>
@@ -625,6 +678,12 @@ const state = {
   step: 1,
   submitted: false,
   accept: false,
+  caso: {
+    numeroCotizacion: "LRDS-AUT-2026-04172",
+    tipoPoliza: "Póliza de Automóvil Particular",
+    fechaEmision: "17 abr 2026",
+    corredor: "Jeffrey Martínez",
+  },
   cliente: {
     nombre: "Eduardo Alberto Moreno Vásquez",
     tipoId: "Cédula",
@@ -785,12 +844,17 @@ function renderHeader() {
     <header class="header">
       <div class="brand-row">
         <div class="brand-lockup">
-          <div class="brand-mark">
-            <span class="brand-mark-text">R</span>
-          </div>
-          <div>
-            <div class="brand-name">La Regional</div>
-            <div class="brand-sub">Inspección de vehículo</div>
+          <img class="brand-logo-img" src="logo.png" alt="La Regional de Seguros"
+               onload="this.classList.add('loaded')"
+               onerror="this.remove()">
+          <div class="brand-fallback">
+            <div class="brand-mark">
+              <span class="brand-mark-text">LR</span>
+            </div>
+            <div>
+              <div class="brand-name">La Regional</div>
+              <div class="brand-sub">Inspección de vehículo</div>
+            </div>
           </div>
         </div>
         <button class="help-btn" aria-label="Ayuda" onclick="openHelp()">${icon("helpCircle", 20)}</button>
@@ -802,7 +866,29 @@ function renderHeader() {
 /* ============ PASO 1 · TÚ ============ */
 function renderStep1() {
   const c = state.cliente;
+  const k = state.caso;
   return `
+    <!-- Caso / Cotización -->
+    <section class="section">
+      <div class="case-card">
+        <div class="case-pill">
+          ${icon("fileText", 13, { sw: 2 })}
+          Cotización
+        </div>
+        <div class="case-number">${esc(k.numeroCotizacion)}</div>
+        <div class="case-meta-row">
+          <span>${esc(k.tipoPoliza)}</span>
+        </div>
+        <div class="case-meta-row">
+          <span class="case-meta-label">Emitida</span>
+          <span>${esc(k.fechaEmision)}</span>
+          <span class="case-dot"></span>
+          <span class="case-meta-label">Corredor</span>
+          <span>${esc(k.corredor)}</span>
+        </div>
+      </div>
+    </section>
+
     <!-- Instructivo -->
     <section class="section">
       <div class="section-head">
@@ -1038,7 +1124,7 @@ function renderSuccess() {
     <div class="success-icon">${icon("checkCircle2", 44, { sw: 2 })}</div>
     <div class="eyebrow">INSPECCIÓN RECIBIDA</div>
     <h1>¡Gracias, ${esc(firstName)}!</h1>
-    <p>Hemos recibido tu inspección. Un ejecutivo te contactará en las próximas <strong>24 horas hábiles</strong> al correo o teléfono registrado.</p>
+    <p>Hemos recibido las fotografías para tu cotización <strong>${esc(state.caso.numeroCotizacion)}</strong>. Un ejecutivo te contactará en las próximas <strong>24 horas hábiles</strong>.</p>
     <div class="ref-card">
       <div class="ref-label">NÚMERO DE REFERENCIA</div>
       <div class="ref-num">${ref}</div>
