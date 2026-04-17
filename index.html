@@ -8,8 +8,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="LRDS">
 <meta name="format-detection" content="telephone=no">
-<meta name="description" content="LRDS · Solicitud de asegurabilidad vehicular">
-<title>LRDS · Asegurabilidad</title>
+<meta name="description" content="La Regional de Seguros · Inspección de vehículo">
+<title>LRDS · Inspección de vehículo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -22,11 +22,18 @@
     --ink-faint: #7A766B;
     --line: #DCD6C4;
     --line-soft: #ECE6D4;
-    --accent: #6B7F47;
-    --accent-soft: #EEF1E0;
-    --accent-ink: #3F4B24;
+
+    --accent: #1E3A5F;
+    --accent-soft: #E5EBF3;
+    --accent-mid: #3B5778;
+    --accent-ink: #122741;
+
     --ok: #3E7A4A;
     --ok-soft: #E5EFE4;
+    --warn: #8A6B1F;
+    --warn-soft: #FBF4E8;
+    --warn-line: #E8D9B5;
+
     --sat: env(safe-area-inset-top);
     --sab: env(safe-area-inset-bottom);
   }
@@ -38,15 +45,11 @@
     scroll-behavior: smooth;
   }
   body {
-    background: var(--bg);
-    color: var(--ink);
+    background: var(--bg); color: var(--ink);
     font-family: "Inter Tight", system-ui, -apple-system, sans-serif;
-    font-weight: 400;
-    line-height: 1.55;
-    font-size: 16px;
+    font-weight: 400; line-height: 1.55; font-size: 16px;
     -webkit-font-smoothing: antialiased;
     min-height: 100dvh;
-    min-height: -webkit-fill-available;
   }
   button {
     font: inherit; color: inherit; background: none; border: none;
@@ -54,32 +57,26 @@
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
   }
-  input, select, textarea {
-    font: inherit; color: inherit; font-family: inherit;
-    -webkit-appearance: none;
-    appearance: none;
-    border-radius: 0;
-  }
-  input:focus, select:focus { outline: none; }
-  input::placeholder { color: var(--ink-faint); opacity: 1; }
   .serif { font-family: "Instrument Serif", Georgia, serif; letter-spacing: -0.01em; }
   .mono  { font-family: "JetBrains Mono", ui-monospace, monospace; }
   svg { display: block; flex-shrink: 0; }
 
   .app { max-width: 460px; margin: 0 auto; color: var(--ink); padding-bottom: calc(140px + var(--sab)); }
 
-  /* ---------- Header ---------- */
+  /* ============ HEADER ============ */
   .header {
-    padding: max(28px, calc(16px + var(--sat))) 20px 20px;
+    padding: max(28px, calc(16px + var(--sat))) 20px 22px;
     border-bottom: 1px solid var(--line-soft);
   }
-  .brand-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; }
+  .brand-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 26px; }
   .brand { display: flex; align-items: center; gap: 12px; }
   .brand-mark {
-    width: 42px; height: 42px; border-radius: 12px;
-    background: linear-gradient(135deg, var(--accent) 0%, #869A5E 100%);
-    box-shadow: 0 2px 4px rgba(63,75,36,.25);
+    width: 44px; height: 44px; border-radius: 11px;
+    background: var(--accent); color: #FFF;
+    box-shadow: 0 2px 6px rgba(30,58,95,.28);
     display: flex; align-items: center; justify-content: center;
+    font-family: "Instrument Serif", serif;
+    font-size: 22px; letter-spacing: -0.02em;
   }
   .brand-name { font-family: "Instrument Serif", serif; font-size: 22px; line-height: 1; }
   .brand-sub {
@@ -94,30 +91,36 @@
   }
   .help-btn:active { transform: scale(.94); background: var(--bg); }
 
-  /* ---------- Stepper ---------- */
-  .stepper { display: flex; align-items: center; gap: 8px; }
-  .step-item {
-    display: flex; align-items: center; gap: 8px;
-    background: transparent; border: none; padding: 4px 2px; cursor: pointer;
-    min-height: 44px;
+  /* ============ STEPPER (solo dots) ============ */
+  .stepper {
+    display: flex; align-items: center; gap: 6px;
+    padding: 0 4px;
+  }
+  .step-dot-wrap {
+    background: transparent; border: none; padding: 4px;
+    cursor: pointer; min-height: 44px;
+    display: flex; align-items: center; justify-content: center;
     transition: opacity .12s;
   }
-  .step-item:active { opacity: .6; }
+  .step-dot-wrap:active { opacity: .6; }
   .step-dot {
-    width: 30px; height: 30px; border-radius: 999px;
+    width: 28px; height: 28px; border-radius: 999px;
     display: flex; align-items: center; justify-content: center;
     font-size: 13px; font-weight: 600; transition: all .2s; flex-shrink: 0;
     background: var(--surface); border: 1px solid var(--line); color: var(--ink-faint);
   }
   .step-dot.done   { background: var(--ink); border-color: var(--ink); color: var(--surface); }
-  .step-dot.active { background: var(--accent); border-color: var(--accent); color: #FFF; }
-  .step-label { font-size: 13px; font-weight: 500; color: var(--ink-faint); white-space: nowrap; }
-  .step-item.done   .step-label { color: var(--ink-soft); }
-  .step-item.active .step-label { color: var(--ink); font-weight: 600; }
-  .step-line { flex: 1; height: 1.5px; background: var(--line); transition: background .3s; min-width: 8px; }
+  .step-dot.active {
+    background: var(--accent); border-color: var(--accent); color: #FFF;
+    box-shadow: 0 0 0 4px var(--accent-soft);
+  }
+  .step-line {
+    flex: 1; height: 2px; background: var(--line);
+    border-radius: 2px; transition: background .3s; min-width: 8px;
+  }
   .step-line.done { background: var(--ink); }
 
-  /* ---------- Hero ---------- */
+  /* ============ HERO ============ */
   .hero { padding: 28px 20px 4px; }
   .eyebrow {
     display: inline-block; font-size: 12px; font-weight: 600;
@@ -132,49 +135,33 @@
   }
   .hero p { font-size: 16px; color: var(--ink-soft); line-height: 1.5; }
 
-  /* ---------- Section ---------- */
+  /* ============ SECTION ============ */
   .section { padding: 28px 20px; border-top: 1px solid var(--line-soft); }
-  .section-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 20px; gap: 12px; }
+  .section:first-of-type { border-top: none; }
+  .section-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 20px; gap: 12px;
+  }
   .section-title { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
   .section-num { font-family: "JetBrains Mono", monospace; font-size: 13px; color: var(--ink-faint); font-weight: 500; }
   .section-head h2 { font-family: "Instrument Serif", serif; font-size: 24px; }
   .section-meta { font-size: 12px; color: var(--ink-faint); font-weight: 500; white-space: nowrap; }
 
-  /* ---------- Fields ---------- */
-  .field { margin-bottom: 22px; }
-  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-  .field-row.three { grid-template-columns: 1fr 1fr 1fr; }
-  .field label {
-    display: block; font-size: 14px; font-weight: 600;
-    color: var(--ink); margin-bottom: 8px;
+  /* ============ TIME BANNER + PROCESS ============ */
+  .time-banner {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 16px; margin-bottom: 16px;
+    background: var(--accent); color: #FFF;
+    border-radius: 14px;
   }
-  .field label.with-hint { margin-bottom: 2px; }
-  .field .hint { font-size: 13px; color: var(--ink-faint); margin-bottom: 8px; line-height: 1.4; }
-  .field input {
-    width: 100%; background: transparent; border: none;
-    border-bottom: 1.5px solid var(--line);
-    padding: 10px 0 12px; font-size: 17px; color: var(--ink);
-    transition: border-color .15s;
+  .time-banner-icon {
+    width: 34px; height: 34px; min-width: 34px; border-radius: 10px;
+    background: rgba(255,255,255,.15);
+    display: flex; align-items: center; justify-content: center; color: #FFF;
   }
-  .field input:focus { border-bottom-color: var(--accent); }
+  .time-banner-text { font-size: 14px; line-height: 1.3; color: rgba(255,255,255,.82); }
+  .time-banner-text strong { color: #FFF; font-weight: 600; font-size: 15px; display: block; }
 
-  /* ---------- Chips ---------- */
-  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-  .chip {
-    padding: 11px 16px; border-radius: 999px;
-    font-size: 14px; font-weight: 500; min-height: 44px;
-    border: 1px solid var(--line); background: var(--surface);
-    color: var(--ink-soft); transition: transform .1s, background .15s, color .15s, border-color .15s;
-    display: inline-flex; align-items: center;
-  }
-  .chip:active { transform: scale(.96); }
-  .chip.active { background: var(--ink); color: var(--surface); border-color: var(--ink); }
-
-  .km-row { display: flex; align-items: baseline; gap: 8px; }
-  .km-row input { flex: 1; }
-  .km-unit { font-size: 16px; color: var(--ink-faint); font-weight: 500; }
-
-  /* ---------- Process card ---------- */
   .process-card {
     background: var(--surface); border: 1px solid var(--line);
     border-radius: 16px; padding: 4px 18px; margin-bottom: 16px;
@@ -187,9 +174,8 @@
   .process-icon {
     width: 42px; height: 42px; min-width: 42px;
     border-radius: 12px; background: var(--accent-soft);
-    color: var(--accent-ink);
+    color: var(--accent); position: relative;
     display: flex; align-items: center; justify-content: center;
-    position: relative;
   }
   .process-num {
     position: absolute; top: -6px; right: -6px;
@@ -202,25 +188,59 @@
   .process-body { flex: 1; min-width: 0; padding-top: 2px; }
   .process-title { font-size: 15px; font-weight: 600; color: var(--ink); margin-bottom: 2px; }
   .process-sub { font-size: 13px; color: var(--ink-soft); line-height: 1.4; }
-  .process-time {
-    font-size: 11px; font-weight: 600;
-    color: var(--accent-ink); background: var(--accent-soft);
-    padding: 4px 9px; border-radius: 999px; white-space: nowrap;
-    margin-top: 3px;
-  }
 
-  /* ---------- Trust & info ---------- */
+  /* ============ TRUST / INFO ============ */
   .trust-box, .photo-intro {
     display: flex; gap: 12px; padding: 14px;
     background: var(--accent-soft); border-radius: 14px;
-    border: 1px solid var(--line);
+    border: 1px solid rgba(30,58,95,.12);
   }
   .photo-intro { margin-bottom: 20px; }
-  .trust-icon { flex-shrink: 0; margin-top: 2px; }
+  .trust-icon { flex-shrink: 0; margin-top: 2px; color: var(--accent); }
   .trust-title { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 3px; }
   .trust-text { font-size: 13px; color: var(--ink-soft); line-height: 1.45; }
 
-  /* ---------- Photos ---------- */
+  /* ============ DATA CARDS ============ */
+  .data-card {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 14px; overflow: hidden;
+  }
+  .data-row {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 14px 16px; border-bottom: 1px solid var(--line-soft);
+  }
+  .data-row:last-child { border-bottom: none; }
+  .data-icon { color: var(--accent); width: 22px; display: flex; justify-content: center; margin-top: 1px; }
+  .data-body { flex: 1; min-width: 0; }
+  .data-label {
+    font-size: 11px; color: var(--ink-faint); font-weight: 600;
+    margin-bottom: 3px; letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .data-value {
+    font-size: 16px; color: var(--ink); font-weight: 500;
+    word-break: break-word; line-height: 1.3;
+  }
+  .data-value .with-flag { display: inline-flex; align-items: center; gap: 6px; }
+  .data-value .flag { font-size: 18px; line-height: 1; }
+  .data-value .ccode {
+    font-family: "JetBrains Mono", monospace; font-weight: 500;
+    color: var(--ink-soft); margin-right: 2px;
+  }
+  .data-value .phone-num { font-family: "JetBrains Mono", monospace; letter-spacing: 0.01em; }
+
+  .data-note {
+    margin-top: 12px; padding: 12px 14px;
+    font-size: 13px; color: var(--ink-soft);
+    background: var(--warn-soft); border: 1px solid var(--warn-line);
+    border-radius: 10px; line-height: 1.4;
+    display: flex; gap: 8px; align-items: flex-start;
+  }
+  .data-note a {
+    color: var(--accent); text-decoration: underline; font-weight: 500; cursor: pointer;
+  }
+  .data-note-icon { color: var(--warn); margin-top: 1px; flex-shrink: 0; }
+
+  /* ============ PHOTOS ============ */
   .photo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .photo-slot {
     border-radius: 14px; overflow: hidden;
@@ -236,7 +256,7 @@
     display: flex; align-items: center; justify-content: center;
   }
   .photo-slot.captured .photo-thumb {
-    background: linear-gradient(135deg, #C8BDA4 0%, #8F8771 100%);
+    background: linear-gradient(135deg, #3B5778 0%, #1E3A5F 100%);
   }
   .photo-badge {
     position: absolute; top: 8px; right: 8px;
@@ -259,7 +279,7 @@
     display: inline-flex; align-items: center; gap: 3px;
   }
 
-  /* ---------- Progress ---------- */
+  /* ============ PROGRESS ============ */
   .progress-row {
     margin-top: 20px; padding-top: 18px;
     display: flex; align-items: center; gap: 12px;
@@ -272,38 +292,29 @@
   .progress-fill { height: 100%; background: var(--accent); border-radius: 999px; transition: width .3s; }
   .progress-pct { font-family: "JetBrains Mono", monospace; font-size: 13px; color: var(--ink-soft); font-weight: 500; }
 
-  /* ---------- Summary ---------- */
-  .summary-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; gap: 10px; }
-  .summary-card {
-    background: var(--surface); border: 1px solid var(--line);
-    border-radius: 14px; overflow: hidden;
+  /* ============ PASO 4 ============ */
+  .response-card {
+    display: flex; gap: 12px; padding: 16px;
+    background: var(--accent); color: #FFF;
+    border-radius: 14px; margin-bottom: 20px;
   }
-  .summary-row {
-    display: flex; align-items: center; gap: 12px;
-    padding: 13px 14px; border-bottom: 1px solid var(--line-soft);
+  .response-icon {
+    width: 36px; height: 36px; min-width: 36px; border-radius: 10px;
+    background: rgba(255,255,255,.15);
+    display: flex; align-items: center; justify-content: center; color: #FFF;
+    margin-top: 1px;
   }
-  .summary-row:last-child { border-bottom: none; }
-  .summary-row-icon { color: var(--ink-faint); width: 20px; display: flex; justify-content: center; }
-  .summary-row-body { flex: 1; min-width: 0; }
-  .summary-row-label { font-size: 11px; color: var(--ink-faint); font-weight: 500; margin-bottom: 2px; }
-  .summary-row-value { font-size: 15px; color: var(--ink); font-weight: 500; word-break: break-word; }
-  .summary-row-value.empty { color: var(--ink-faint); font-style: italic; }
-
-  .edit-btn {
-    display: flex; align-items: center; gap: 6px;
-    background: transparent; border: 1px solid var(--line);
-    padding: 7px 12px; border-radius: 999px;
-    color: var(--ink-soft); font-size: 13px; font-weight: 500;
-    min-height: 36px; transition: transform .1s;
-  }
-  .edit-btn:active { transform: scale(.94); }
+  .response-title { font-size: 15px; font-weight: 600; margin-bottom: 3px; }
+  .response-text { font-size: 13px; color: rgba(255,255,255,.8); line-height: 1.4; }
 
   .warning-box {
     display: flex; gap: 10px; padding: 12px;
-    background: #FBF4E8; border-radius: 12px;
-    border: 1px solid #E8D9B5; margin-bottom: 16px;
+    background: var(--warn-soft); border-radius: 12px;
+    border: 1px solid var(--warn-line); margin-bottom: 16px;
   }
+  .warning-icon { color: var(--warn); margin-top: 1px; flex-shrink: 0; }
   .warning-text { font-size: 13px; color: #5C4818; line-height: 1.45; }
+  .warning-text a { color: var(--accent); text-decoration: underline; font-weight: 500; cursor: pointer; }
 
   .photo-gallery { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; }
   .gallery-cell {
@@ -312,8 +323,8 @@
     background: #F4F0E2; border: 1px dashed var(--line);
   }
   .gallery-cell.done {
-    background: linear-gradient(135deg, #C8BDA4 0%, #8F8771 100%);
-    border-style: solid;
+    background: linear-gradient(135deg, #3B5778 0%, #1E3A5F 100%);
+    border-style: solid; border-color: var(--line);
   }
   .gallery-num {
     position: absolute; bottom: 3px; left: 3px;
@@ -323,7 +334,7 @@
 
   .accept-row {
     display: flex; align-items: flex-start; gap: 12px;
-    cursor: pointer; padding: 4px;
+    cursor: pointer; padding: 6px 4px;
     transition: opacity .12s;
   }
   .accept-row:active { opacity: .7; }
@@ -333,11 +344,11 @@
     display: flex; align-items: center; justify-content: center;
     margin-top: 1px; transition: all .15s;
   }
-  .checkbox.checked { border-color: var(--ok); background: var(--ok); color: #FFF; }
+  .checkbox.checked { border-color: var(--accent); background: var(--accent); color: #FFF; }
   .accept-text { font-size: 14px; color: var(--ink-soft); line-height: 1.5; }
-  .accept-text a { color: var(--accent-ink); text-decoration: underline; font-weight: 500; }
+  .accept-text a { color: var(--accent); text-decoration: underline; font-weight: 500; }
 
-  /* ---------- Footer nav ---------- */
+  /* ============ FOOTER NAV ============ */
   .footer-nav {
     position: fixed; left: 0; right: 0; bottom: 0;
     padding: 16px 20px calc(16px + var(--sab));
@@ -364,18 +375,25 @@
     border-radius: 13px; padding: 16px 20px;
     font-size: 16px; font-weight: 600;
     min-height: 52px; flex: 1;
-    transition: transform .1s, background .2s;
+    transition: transform .1s, background .2s, opacity .2s;
   }
   .btn-primary:active { transform: scale(.98); background: var(--accent); }
+  .btn-primary:disabled,
+  .btn-primary[aria-disabled="true"] {
+    background: #BFB9A8; color: #F2EEE0;
+    cursor: not-allowed; opacity: .7;
+  }
+  .btn-primary:disabled:active,
+  .btn-primary[aria-disabled="true"]:active { transform: none; background: #BFB9A8; }
   @media (hover: hover) {
-    .btn-primary:hover { background: var(--accent); }
+    .btn-primary:not(:disabled):not([aria-disabled="true"]):hover { background: var(--accent); }
   }
   .footer-note {
     display: flex; align-items: center; justify-content: center; gap: 6px;
     margin-top: 10px; font-size: 12px; color: var(--ink-faint);
   }
 
-  /* ---------- Success ---------- */
+  /* ============ SUCCESS ============ */
   .success {
     max-width: 460px; margin: 0 auto;
     min-height: 100dvh;
@@ -404,7 +422,84 @@
   .ref-label { font-size: 11px; letter-spacing: 0.12em; color: var(--ink-faint); margin-bottom: 4px; font-weight: 600; }
   .ref-num { font-family: "JetBrains Mono", monospace; font-size: 20px; color: var(--ink); font-weight: 500; }
   .ref-note { font-size: 12px; color: var(--ink-faint); margin-top: 8px; }
-  .success .btn-primary { width: 100%; }
+  .success-close { font-size: 14px; color: var(--ink-faint); margin-top: 16px; }
+  .success-help-link {
+    margin-top: 24px; padding: 10px 16px;
+    color: var(--accent); font-size: 14px; font-weight: 500;
+    border: 1px solid var(--line); border-radius: 10px;
+    display: inline-flex; align-items: center; gap: 6px;
+    transition: transform .1s;
+  }
+  .success-help-link:active { transform: scale(.97); }
+
+  /* ============ BOTTOM SHEET ============ */
+  .sheet-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(26, 26, 24, 0);
+    pointer-events: none;
+    transition: background .25s;
+    z-index: 100;
+    display: flex; align-items: flex-end; justify-content: center;
+  }
+  .sheet-backdrop.open {
+    background: rgba(26, 26, 24, .45);
+    pointer-events: auto;
+  }
+  .sheet {
+    width: 100%; max-width: 460px;
+    background: var(--surface);
+    border-radius: 20px 20px 0 0;
+    padding: 8px 20px calc(20px + var(--sab));
+    transform: translateY(100%);
+    transition: transform .32s cubic-bezier(.32,.72,0,1);
+    max-height: 88vh; overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .sheet-backdrop.open .sheet { transform: translateY(0); }
+  .sheet-handle {
+    width: 40px; height: 5px; border-radius: 999px;
+    background: var(--line); margin: 8px auto 16px;
+  }
+  .sheet-title {
+    font-family: "Instrument Serif", serif; font-size: 24px;
+    margin-bottom: 6px; letter-spacing: -0.01em;
+  }
+  .sheet-subtitle { font-size: 14px; color: var(--ink-soft); margin-bottom: 20px; line-height: 1.4; }
+  .sheet-action {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 16px; margin-bottom: 10px;
+    background: var(--accent-soft);
+    border: 1px solid rgba(30,58,95,.12);
+    border-radius: 13px;
+    color: var(--ink); text-decoration: none;
+    font: inherit; width: 100%;
+    transition: transform .1s;
+  }
+  .sheet-action:active { transform: scale(.98); }
+  .sheet-action-icon {
+    width: 40px; height: 40px; border-radius: 10px;
+    background: var(--accent); color: #FFF;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .sheet-action-icon.wa { background: #25D366; }
+  .sheet-action-body { flex: 1; min-width: 0; }
+  .sheet-action-title { font-size: 15px; font-weight: 600; color: var(--ink); margin-bottom: 2px; }
+  .sheet-action-sub { font-size: 13px; color: var(--ink-soft); line-height: 1.3; }
+  .sheet-action-arrow { color: var(--ink-faint); }
+  .sheet-divider {
+    font-size: 11px; letter-spacing: 0.12em; color: var(--ink-faint);
+    font-weight: 600; margin: 18px 4px 8px;
+  }
+  .faq-item { padding: 14px 4px; border-bottom: 1px solid var(--line-soft); }
+  .faq-item:last-child { border-bottom: none; }
+  .faq-q { font-size: 15px; font-weight: 600; color: var(--ink); margin-bottom: 6px; line-height: 1.35; }
+  .faq-a { font-size: 14px; color: var(--ink-soft); line-height: 1.5; }
+  .sheet-close {
+    width: 100%; margin-top: 8px; padding: 14px;
+    background: transparent; border: 1px solid var(--line);
+    border-radius: 12px; color: var(--ink);
+    font-size: 15px; font-weight: 600; min-height: 48px;
+  }
 
   @keyframes fadeUp {
     from { opacity: 0; transform: translateY(6px); }
@@ -416,45 +511,97 @@
     60%  { opacity: 1; transform: scale(1.08); }
     100% { opacity: 1; transform: scale(1); }
   }
-
-  /* Prevenir zoom en iOS al enfocar input (respaldo: font-size >= 16px) */
-  @supports (-webkit-touch-callout: none) {
-    input, select, textarea { font-size: 17px; }
-  }
 </style>
 </head>
 <body>
 <div id="app"></div>
 
+<!-- Bottom sheet de ayuda -->
+<div id="help-sheet" class="sheet-backdrop" onclick="closeHelp(event)">
+  <div class="sheet" onclick="event.stopPropagation()">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title serif">¿En qué te ayudamos?</div>
+    <div class="sheet-subtitle">Estamos disponibles para acompañarte con tu inspección.</div>
+
+    <a class="sheet-action" href="https://wa.me/50763005737?text=Hola%2C%20necesito%20ayuda%20con%20mi%20inspecci%C3%B3n%20de%20auto%20LRDS" target="_blank" rel="noopener">
+      <div class="sheet-action-icon wa">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="#FFF" xmlns="http://www.w3.org/2000/svg"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.174.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.885 3.488"/></svg>
+      </div>
+      <div class="sheet-action-body">
+        <div class="sheet-action-title">WhatsApp</div>
+        <div class="sheet-action-sub">+507 6300 5737 · Respuesta inmediata</div>
+      </div>
+      <div class="sheet-action-arrow">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </div>
+    </a>
+
+    <a class="sheet-action" href="tel:+5078005737">
+      <div class="sheet-action-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      </div>
+      <div class="sheet-action-body">
+        <div class="sheet-action-title">Llámanos</div>
+        <div class="sheet-action-sub">800-LRDS (800-5737) · Asistencia 24 h</div>
+      </div>
+      <div class="sheet-action-arrow">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </div>
+    </a>
+
+    <div class="sheet-divider">PREGUNTAS FRECUENTES</div>
+
+    <div class="faq-item">
+      <div class="faq-q">¿Por qué necesitan las fotografías?</div>
+      <div class="faq-a">Las fotos nos permiten verificar el estado actual de tu vehículo al iniciar la póliza. Es un requisito estándar para emitir la cobertura.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">¿Qué hago si no tengo buena luz?</div>
+      <div class="faq-a">Intenta tomar las fotos durante el día en un área abierta. Evita sombras fuertes sobre el vehículo. Si no es posible, contáctanos para reagendar.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">¿Mis datos están seguros?</div>
+      <div class="faq-a">Sí. Tu información se usa únicamente para procesar esta inspección y se almacena bajo los estándares de seguridad de La Regional de Seguros.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">Los datos mostrados no son míos o están incorrectos</div>
+      <div class="faq-a">No envíes esta inspección. Comunícate con nosotros por WhatsApp o llamada y te ayudamos a corregirlo.</div>
+    </div>
+
+    <button class="sheet-close" onclick="closeHelp()">Cerrar</button>
+  </div>
+</div>
+
 <script>
 /* ============ STATE ============ */
-const STORAGE_KEY = 'lrds_state_v1';
+const STORAGE_KEY = 'lrds_inspect_v3';
+const TOTAL_STEPS = 4;
 
 const state = {
   step: 1,
   submitted: false,
   accept: false,
-  data: {
-    nombre: "María Fernanda Rodríguez",
-    idType: "Cédula",
-    idNumber: "1-1456-0789",
-    fechaNacimiento: "1978-03-14",
-    telefono: "+506 8812 4455",
-    email: "maria.rodriguez@correo.cr",
-    direccion: "San José, Curridabat",
-    placa: "BMW-472",
+  cliente: {
+    nombre: "Carlos Alberto Moreno Vásquez",
+    tipoId: "Cédula",
+    numeroId: "8-745-892",
+    telefono: "6234-5678",
+    email: "carlos.moreno@correo.com",
+    direccion: "Panamá, San Francisco",
+  },
+  vehiculo: {
+    placa: "BAN-1234",
     marca: "Toyota",
     modelo: "Corolla Cross",
     anio: "2023",
-    motor: "",
-    color: "",
-    vin: "",
-    usage: "Particular",
-    km: "42 180",
+    color: "Plata",
+    vin: "1HGBH41JXMN109186",
+    uso: "Particular",
+    kilometraje: "42,180",
   },
   photos: [
-    { id: 1, label: "Frente del auto",    hint: "Vista completa de frente", status: "done" },
-    { id: 2, label: "Parte trasera",       hint: "Con placa visible",        status: "done" },
+    { id: 1, label: "Frente del auto",    hint: "Vista completa de frente", status: "pending" },
+    { id: 2, label: "Parte trasera",       hint: "Con placa visible",        status: "pending" },
     { id: 3, label: "Lado derecho",        hint: "Todo el costado",          status: "pending" },
     { id: 4, label: "Lado izquierdo",      hint: "Todo el costado",          status: "pending" },
     { id: 5, label: "Esquina delantera",   hint: "Vista diagonal (¾)",       status: "pending" },
@@ -462,21 +609,34 @@ const state = {
   ],
 };
 
-const USAGE_OPTIONS = ["Particular", "Comercial", "Transporte público", "Carga"];
-const ID_TYPES = ["Cédula", "DIMEX", "Pasaporte"];
-
 const HEROES = {
-  1: { eyebrow: "PASO 1 DE 3", title: "Empecemos por tus datos",     subtitle: "Te guiaremos en un proceso corto y sencillo. Antes de comenzar, mira cómo funciona." },
-  2: { eyebrow: "PASO 2 DE 3", title: "Cuéntanos sobre tu vehículo", subtitle: "Datos del auto y seis fotografías desde distintos ángulos." },
-  3: { eyebrow: "PASO 3 DE 3", title: "Revisa tu información",       subtitle: "Verifica que todo esté correcto. Si algo necesita cambios, toca el lápiz." },
+  1: {
+    eyebrow: "PASO 1 DE 4",
+    title: "Hola, Carlos",
+    subtitle: "Bienvenido al proceso de inspección. Primero confirma que tus datos sean correctos.",
+  },
+  2: {
+    eyebrow: "PASO 2 DE 4",
+    title: "Datos del vehículo",
+    subtitle: "Verifica que la información de tu auto coincida con la póliza.",
+  },
+  3: {
+    eyebrow: "PASO 3 DE 4",
+    title: "Toma 6 fotografías",
+    subtitle: "Captura tu vehículo desde distintos ángulos con la cámara de tu teléfono.",
+  },
+  4: {
+    eyebrow: "PASO 4 DE 4",
+    title: "Revisa y envía",
+    subtitle: "Último paso. Verifica las fotografías y autoriza el envío de tu inspección.",
+  },
 };
 
-/* ============ PERSISTENCE ============ */
+/* ============ PERSISTENCIA ============ */
 function saveState() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      step: state.step, data: state.data,
-      photos: state.photos, accept: state.accept,
+      step: state.step, photos: state.photos, accept: state.accept,
     }));
   } catch(e) {}
 }
@@ -485,15 +645,14 @@ function loadState() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return;
     const p = JSON.parse(raw);
-    if (p.data) Object.assign(state.data, p.data);
     if (p.photos && Array.isArray(p.photos) && p.photos.length === 6) state.photos = p.photos;
-    if (typeof p.step === 'number' && p.step >= 1 && p.step <= 3) state.step = p.step;
+    if (typeof p.step === 'number' && p.step >= 1 && p.step <= TOTAL_STEPS) state.step = p.step;
     if (typeof p.accept === 'boolean') state.accept = p.accept;
   } catch(e) {}
 }
 function clearState() { try { localStorage.removeItem(STORAGE_KEY); } catch(e) {} }
 
-/* ============ ICONS ============ */
+/* ============ ICONOS ============ */
 const ICON_PATHS = {
   shield:        `<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>`,
   check:         `<polyline points="20 6 9 17 4 12"/>`,
@@ -501,18 +660,19 @@ const ICON_PATHS = {
   arrowLeft:     `<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>`,
   info:          `<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>`,
   helpCircle:    `<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>`,
-  lock:          `<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>`,
   camera:        `<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>`,
   fileText:      `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>`,
-  messageCircle: `<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>`,
-  pencil:        `<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>`,
+  sendIcon:      `<path d="M21.5 12H2.5M12 2.5l9.5 9.5-9.5 9.5"/>`,
   user:          `<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>`,
   car:           `<path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/>`,
   mail:          `<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>`,
   phone:         `<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>`,
-  calendar:      `<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>`,
   mapPin:        `<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>`,
   checkCircle2:  `<path d="M21 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>`,
+  clock:         `<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>`,
+  key:           `<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>`,
+  gauge:         `<path d="M12 15l3.5-3.5M20.3 18a9 9 0 1 0-16.6 0"/>`,
+  palette:       `<circle cx="12" cy="12" r="10"/><circle cx="7.5" cy="10.5" r="1"/><circle cx="12" cy="7.5" r="1"/><circle cx="16.5" cy="10.5" r="1"/><path d="M12 22a5 5 0 0 1-5-5c0-2 2-3 5-3s5 1 5 3a5 5 0 0 1-5 5z"/>`,
 };
 function icon(name, size, opts) {
   size = size || 20;
@@ -524,7 +684,7 @@ function icon(name, size, opts) {
 }
 function carAngle(n, captured) {
   const color = captured ? "#FBF9F3" : "#5C5A54";
-  const op = captured ? 0.9 : 0.5;
+  const op = captured ? 0.92 : 0.5;
   const style = `width:70%;height:68%;opacity:${op};`;
   const a = `fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"`;
   if (n === 1) return `<svg style="${style}" viewBox="0 0 100 80" ${a}><path d="M15 55 L20 35 L35 28 L65 28 L80 35 L85 55 L85 62 L15 62 Z"/><circle cx="28" cy="62" r="6"/><circle cx="72" cy="62" r="6"/><path d="M35 28 L40 40 L60 40 L65 28"/><path d="M22 45 L28 45 M72 45 L78 45"/></svg>`;
@@ -540,14 +700,6 @@ function esc(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 function stateOf(n, current) { return n < current ? "done" : n === current ? "active" : "pending"; }
-function formatDate(iso) {
-  if (!iso) return "";
-  const p = iso.split("-");
-  const m = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
-  return `${parseInt(p[2])} ${m[parseInt(p[1])-1]} ${p[0]}`;
-}
-
-/* Haptic feedback (Android + nuevos iPhones) */
 function haptic() { if (navigator.vibrate) navigator.vibrate(8); }
 
 /* ============ RENDER ============ */
@@ -567,6 +719,7 @@ function render() {
         ${state.step === 1 ? renderStep1() : ""}
         ${state.step === 2 ? renderStep2() : ""}
         ${state.step === 3 ? renderStep3() : ""}
+        ${state.step === 4 ? renderStep4() : ""}
       </div>
     </div>
     ${renderFooterNav()}
@@ -574,38 +727,37 @@ function render() {
 }
 
 function renderHeader() {
+  const parts = [];
+  for (let i = 1; i <= TOTAL_STEPS; i++) {
+    const st = stateOf(i, state.step);
+    parts.push(`<button class="step-dot-wrap" onclick="goTo(${i})" aria-label="Paso ${i}">
+      <div class="step-dot ${st}">${st === 'done' ? icon('check', 14, { sw: 3 }) : i}</div>
+    </button>`);
+    if (i < TOTAL_STEPS) {
+      parts.push(`<div class="step-line ${state.step > i ? 'done' : ''}"></div>`);
+    }
+  }
   return `
     <header class="header">
       <div class="brand-row">
         <div class="brand">
-          <div class="brand-mark">${icon("shield", 20, { stroke: "#FBF9F3", sw: 2 })}</div>
+          <div class="brand-mark">L</div>
           <div>
-            <div class="brand-name">LRDS</div>
-            <div class="brand-sub">ASEGURABILIDAD</div>
+            <div class="brand-name">La Regional</div>
+            <div class="brand-sub">INSPECCIÓN DE VEHÍCULO</div>
           </div>
         </div>
-        <button class="help-btn" aria-label="Ayuda">${icon("helpCircle", 20)}</button>
+        <button class="help-btn" aria-label="Ayuda" onclick="openHelp()">${icon("helpCircle", 20)}</button>
       </div>
-      <div class="stepper">
-        ${stepItem(1, "Cuenta",   stateOf(1, state.step))}
-        <div class="step-line ${state.step > 1 ? "done" : ""}"></div>
-        ${stepItem(2, "Vehículo", stateOf(2, state.step))}
-        <div class="step-line ${state.step > 2 ? "done" : ""}"></div>
-        ${stepItem(3, "Revisión", stateOf(3, state.step))}
-      </div>
+      <div class="stepper">${parts.join('')}</div>
     </header>`;
 }
-function stepItem(n, label, st) {
-  return `<button class="step-item ${st}" onclick="goTo(${n})">
-    <div class="step-dot ${st}">${st === "done" ? icon("check", 14, { sw: 3 }) : n}</div>
-    <span class="step-label">${label}</span>
-  </button>`;
-}
 
-/* ======= STEP 1 ======= */
+/* ============ PASO 1 · TÚ ============ */
 function renderStep1() {
-  const d = state.data;
+  const c = state.cliente;
   return `
+    <!-- Instructivo -->
     <section class="section">
       <div class="section-head">
         <div class="section-title">
@@ -613,109 +765,123 @@ function renderStep1() {
           <h2 class="serif">Así funciona</h2>
         </div>
       </div>
-      <div class="process-card">
-        ${processStep(1, icon("fileText",20), "Completa tus datos", "Información personal y del vehículo.", "~2 min")}
-        ${processStep(2, icon("camera",20),   "Toma 6 fotografías", "Usa la cámara de tu teléfono para capturar tu auto desde distintos ángulos.", "~3 min")}
-        ${processStep(3, icon("messageCircle",20), "Recibe tu respuesta", "Un asesor humano te contactará con la evaluación y opciones de póliza.", "24 h")}
+
+      <div class="time-banner">
+        <div class="time-banner-icon">${icon("clock", 18, { sw: 2 })}</div>
+        <div class="time-banner-text">
+          <strong>Tiempo estimado: 3 minutos</strong>
+          Solo necesitas tomar 6 fotografías de tu vehículo.
+        </div>
       </div>
+
+      <div class="process-card">
+        ${processStep(1, icon("fileText",20), "Confirma tus datos", "Verifica tu información personal.")}
+        ${processStep(2, icon("car",20),      "Confirma tu vehículo", "Revisa los datos del auto.")}
+        ${processStep(3, icon("camera",20),   "Toma 6 fotografías", "Captura tu auto desde distintos ángulos.")}
+        ${processStep(4, icon("sendIcon",20), "Envía tu solicitud", "Autoriza con tu aceptación y listo.")}
+      </div>
+
       <div class="trust-box">
-        <div class="trust-icon" style="color: var(--accent-ink);">${icon("lock", 20, { sw: 2 })}</div>
+        <div class="trust-icon">${icon("shield", 20, { sw: 2 })}</div>
         <div>
           <div class="trust-title">Tu información está protegida</div>
-          <div class="trust-text">Cumplimos con la normativa de protección de datos. Solo usamos tu información para evaluar esta solicitud y puedes pedir que la eliminemos en cualquier momento.</div>
+          <div class="trust-text">La Regional de Seguros usa tu información únicamente para esta inspección, bajo las normas vigentes de protección de datos personales.</div>
         </div>
       </div>
     </section>
 
+    <!-- Datos del cliente -->
     <section class="section">
       <div class="section-head">
-        <div class="section-title"><span class="section-num">01</span><h2 class="serif">Información personal</h2></div>
-        <span class="section-meta">6 de 7</span>
+        <div class="section-title">
+          <span class="section-num">01</span>
+          <h2 class="serif">Información personal</h2>
+        </div>
+      </div>
+      <div class="data-card">
+        ${dataRow(icon("user", 18), "Nombre completo", esc(c.nombre))}
+        ${dataRow(icon("fileText", 18), c.tipoId, `<span class="mono">${esc(c.numeroId)}</span>`)}
+        ${dataRow(icon("phone", 18), "Teléfono", `<span class="with-flag"><span class="flag">🇵🇦</span><span class="ccode">+507</span><span class="phone-num">${esc(c.telefono)}</span></span>`)}
+        ${dataRow(icon("mail", 18), "Correo electrónico", esc(c.email))}
+        ${dataRow(icon("mapPin", 18), "Dirección", esc(c.direccion))}
       </div>
 
-      ${field("Nombre completo", `<input autocomplete="name" autocapitalize="words" enterkeyhint="next" oninput="updateField('nombre', this.value)" value="${esc(d.nombre)}">`, "Tal como aparece en tu identificación")}
-
-      <div class="field">
-        <label>Tipo de identificación</label>
-        <div class="chips">${ID_TYPES.map(o => `<button class="chip ${d.idType===o?"active":""}" onclick="setIdType('${o}')">${o}</button>`).join("")}</div>
+      <div class="data-note">
+        <div class="data-note-icon">${icon("info", 16, { sw: 2 })}</div>
+        <div>¿Hay un error en tus datos? No envíes la inspección y <a onclick="openHelp()">contáctanos</a> para corregirlo.</div>
       </div>
-
-      ${field("Número de identificación", `<input class="mono" inputmode="numeric" enterkeyhint="next" oninput="updateField('idNumber', this.value)" value="${esc(d.idNumber)}">`)}
-      ${field("Fecha de nacimiento", `<input type="date" enterkeyhint="next" oninput="updateField('fechaNacimiento', this.value)" value="${esc(d.fechaNacimiento)}">`)}
-      ${field("Teléfono", `<input class="mono" type="tel" inputmode="tel" autocomplete="tel" enterkeyhint="next" oninput="updateField('telefono', this.value)" value="${esc(d.telefono)}">`, "Incluye el código de país")}
-      ${field("Correo electrónico", `<input type="email" inputmode="email" autocomplete="email" autocapitalize="none" spellcheck="false" enterkeyhint="next" oninput="updateField('email', this.value)" value="${esc(d.email)}">`)}
-      ${field("Dirección", `<input autocomplete="street-address" autocapitalize="words" enterkeyhint="done" oninput="updateField('direccion', this.value)" value="${esc(d.direccion)}">`, "Provincia, cantón y distrito")}
-    </section>`;
+    </section>
+  `;
 }
-function processStep(n, iconSvg, title, subtitle, time) {
+function processStep(n, iconSvg, title, subtitle) {
   return `<div class="process-step">
     <div class="process-icon">${iconSvg}<div class="process-num">${n}</div></div>
     <div class="process-body">
       <div class="process-title">${title}</div>
       <div class="process-sub">${subtitle}</div>
     </div>
-    <div class="process-time">${time}</div>
   </div>`;
 }
-function field(label, control, hint) {
-  return `<div class="field">
-    <label class="${hint ? "with-hint" : ""}">${label}</label>
-    ${hint ? `<div class="hint">${hint}</div>` : ""}
-    ${control}
+function dataRow(iconHtml, label, value) {
+  return `<div class="data-row">
+    <div class="data-icon">${iconHtml || ""}</div>
+    <div class="data-body">
+      <div class="data-label">${label}</div>
+      <div class="data-value">${value}</div>
+    </div>
   </div>`;
 }
 
-/* ======= STEP 2 ======= */
+/* ============ PASO 2 · AUTO ============ */
 function renderStep2() {
-  const d = state.data;
+  const v = state.vehiculo;
+  return `
+    <section class="section">
+      <div class="section-head">
+        <div class="section-title">
+          <span class="section-num">01</span>
+          <h2 class="serif">Información del vehículo</h2>
+        </div>
+      </div>
+      <div class="data-card">
+        ${dataRow(icon("car", 18), "Vehículo", `${esc(v.marca)} ${esc(v.modelo)} · ${esc(v.anio)}`)}
+        ${dataRow(icon("key", 18), "Placa", `<span class="mono">${esc(v.placa)}</span>`)}
+        ${dataRow(icon("palette", 18), "Color", esc(v.color))}
+        ${dataRow(icon("fileText", 18), "Chasis (VIN)", `<span class="mono">${esc(v.vin)}</span>`)}
+        ${dataRow(icon("gauge", 18), "Kilometraje", `<span class="mono">${esc(v.kilometraje)} km</span>`)}
+        ${dataRow(null, "Uso", esc(v.uso))}
+      </div>
+
+      <div class="data-note">
+        <div class="data-note-icon">${icon("info", 16, { sw: 2 })}</div>
+        <div>¿Algún dato no coincide con tu auto? No envíes la inspección y <a onclick="openHelp()">contáctanos</a> para corregirlo.</div>
+      </div>
+    </section>
+  `;
+}
+
+/* ============ PASO 3 · FOTOS ============ */
+function renderStep3() {
   const done = state.photos.filter(p => p.status === "done").length;
   const pct = Math.round((done / state.photos.length) * 100);
   return `
     <section class="section">
       <div class="section-head">
-        <div class="section-title"><span class="section-num">01</span><h2 class="serif">Datos del vehículo</h2></div>
-        <span class="section-meta">4 de 9</span>
-      </div>
-
-      ${field("Placa", `<input class="mono" autocapitalize="characters" enterkeyhint="next" oninput="updateField('placa', this.value.toUpperCase())" value="${esc(d.placa)}">`, "Como aparece en la tarjeta de circulación")}
-
-      <div class="field-row">
-        ${field("Marca", `<input autocapitalize="words" enterkeyhint="next" oninput="updateField('marca', this.value)" value="${esc(d.marca)}">`)}
-        ${field("Modelo", `<input autocapitalize="words" enterkeyhint="next" oninput="updateField('modelo', this.value)" value="${esc(d.modelo)}">`)}
-      </div>
-      <div class="field-row three">
-        ${field("Año", `<input inputmode="numeric" pattern="[0-9]*" maxlength="4" enterkeyhint="next" oninput="updateField('anio', this.value)" value="${esc(d.anio)}">`)}
-        ${field("Motor", `<input enterkeyhint="next" oninput="updateField('motor', this.value)" value="${esc(d.motor)}" placeholder="1.8 L">`)}
-        ${field("Color", `<input autocapitalize="words" enterkeyhint="next" oninput="updateField('color', this.value)" value="${esc(d.color)}" placeholder="—">`)}
-      </div>
-      ${field("Número de chasis (VIN)", `<input class="mono" autocapitalize="characters" maxlength="17" enterkeyhint="next" oninput="updateField('vin', this.value.toUpperCase())" value="${esc(d.vin)}" placeholder="Ej. 1HGBH41JXMN109186">`, "17 caracteres. En el parabrisas o marco de la puerta")}
-
-      <div class="field">
-        <label>¿Cómo usas tu auto?</label>
-        <div class="chips">${USAGE_OPTIONS.map(o => `<button class="chip ${d.usage===o?"active":""}" onclick="setUsage('${o}')">${o}</button>`).join("")}</div>
-      </div>
-
-      <div class="field">
-        <label>Kilometraje actual</label>
-        <div class="km-row">
-          <input class="mono" inputmode="numeric" enterkeyhint="done" oninput="updateField('km', this.value)" value="${esc(d.km)}">
-          <span class="km-unit">km</span>
+        <div class="section-title">
+          <span class="section-num">01</span>
+          <h2 class="serif">Captura tu vehículo</h2>
         </div>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="section-head">
-        <div class="section-title"><span class="section-num">02</span><h2 class="serif">Fotografías</h2></div>
         <span class="section-meta">${done} de 6</span>
       </div>
+
       <div class="photo-intro">
-        <div class="trust-icon" style="color: var(--accent);">${icon("info", 20, { sw: 2 })}</div>
+        <div class="trust-icon">${icon("info", 20, { sw: 2 })}</div>
         <div>
           <div class="trust-title">Antes de empezar</div>
-          <div class="trust-text">Toma las fotos afuera, con buena luz y el auto limpio. Asegúrate de que se vea completo.</div>
+          <div class="trust-text">Toma las fotos al aire libre, con buena luz y el auto limpio. Asegúrate de que el vehículo se vea completo en cada foto.</div>
         </div>
       </div>
+
       <div class="photo-grid">
         ${state.photos.map(p => {
           const c = p.status === "done";
@@ -731,6 +897,7 @@ function renderStep2() {
           </button>`;
         }).join("")}
       </div>
+
       <div class="progress-row">
         <div class="progress-count"><span class="big">${done}</span><span class="soft">de ${state.photos.length}</span></div>
         <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
@@ -739,48 +906,32 @@ function renderStep2() {
     </section>`;
 }
 
-/* ======= STEP 3 ======= */
-function renderStep3() {
-  const d = state.data;
+/* ============ PASO 4 · ENVIAR ============ */
+function renderStep4() {
   const done = state.photos.filter(p => p.status === "done").length;
+  const complete = done === 6;
   return `
     <section class="section">
-      <div class="summary-head">
-        <div class="section-title"><span class="section-num">01</span><h2 class="serif">Información personal</h2></div>
-        <button class="edit-btn" onclick="goTo(1)">${icon("pencil", 13, { sw: 2 })} Editar</button>
+      <div class="section-head">
+        <div class="section-title">
+          <span class="section-num">01</span>
+          <h2 class="serif">Confirma el envío</h2>
+        </div>
       </div>
-      <div class="summary-card">
-        ${summaryRow(icon("user", 17), "Nombre", d.nombre)}
-        ${summaryRow(icon("fileText", 17), d.idType, d.idNumber, true)}
-        ${summaryRow(icon("calendar", 17), "Fecha nacim.", formatDate(d.fechaNacimiento))}
-        ${summaryRow(icon("phone", 17), "Teléfono", d.telefono, true)}
-        ${summaryRow(icon("mail", 17), "Correo", d.email)}
-        ${summaryRow(icon("mapPin", 17), "Dirección", d.direccion)}
-      </div>
-    </section>
 
-    <section class="section">
-      <div class="summary-head">
-        <div class="section-title"><span class="section-num">02</span><h2 class="serif">Vehículo</h2></div>
-        <button class="edit-btn" onclick="goTo(2)">${icon("pencil", 13, { sw: 2 })} Editar</button>
+      <div class="response-card">
+        <div class="response-icon">${icon("clock", 18, { sw: 2 })}</div>
+        <div>
+          <div class="response-title">Respuesta en 24 horas hábiles</div>
+          <div class="response-text">Un ejecutivo de La Regional revisará tu solicitud y te contactará al correo o teléfono registrados.</div>
+        </div>
       </div>
-      <div class="summary-card">
-        ${summaryRow(icon("car", 17), "Vehículo", `${d.marca} ${d.modelo} ${d.anio}`)}
-        ${summaryRow(null, "Placa", d.placa, true)}
-        ${summaryRow(null, "Kilometraje", `${d.km} km`, true)}
-        ${summaryRow(null, "Uso", d.usage)}
-      </div>
-    </section>
 
-    <section class="section">
-      <div class="summary-head">
-        <div class="section-title"><span class="section-num">03</span><h2 class="serif">Fotografías</h2></div>
-        <button class="edit-btn" onclick="goTo(2)">${icon("pencil", 13, { sw: 2 })} Editar</button>
-      </div>
-      ${done < 6 ? `<div class="warning-box">
-        <div class="trust-icon" style="color:#8A6B1F;">${icon("info", 18, { sw: 2 })}</div>
-        <div class="warning-text"><strong>Faltan ${6 - done} fotografías.</strong> Para enviar tu solicitud necesitas las seis.</div>
+      ${!complete ? `<div class="warning-box">
+        <div class="warning-icon">${icon("info", 18, { sw: 2 })}</div>
+        <div class="warning-text"><strong style="font-weight:600">Faltan ${6 - done} fotografías.</strong> Debes completar las 6 antes de enviar. <a onclick="goTo(3)">Volver a fotos</a></div>
       </div>` : ""}
+
       <div class="photo-gallery">
         ${state.photos.map(p => {
           const c = p.status === "done";
@@ -790,88 +941,106 @@ function renderStep3() {
     </section>
 
     <section class="section">
+      <div class="section-head">
+        <div class="section-title">
+          <span class="section-num">02</span>
+          <h2 class="serif">Autorización</h2>
+        </div>
+      </div>
       <div class="accept-row" onclick="toggleAccept()">
         <div class="checkbox ${state.accept?"checked":""}">${state.accept ? icon("check", 13, { sw: 3 }) : ""}</div>
-        <div class="accept-text">Declaro que la información es correcta y acepto los <a>términos y condiciones</a> y la <a>política de privacidad</a> de LRDS.</div>
+        <div class="accept-text">Declaro que la información es correcta y autorizo a La Regional de Seguros a usar mis datos y fotografías para procesar esta inspección, según los <a>términos y condiciones</a> y la <a>política de privacidad</a>.</div>
       </div>
     </section>`;
 }
-function summaryRow(iconHtml, label, value, mono) {
-  const val = value ? esc(value) : `<span class="summary-row-value empty">Sin datos</span>`;
-  return `<div class="summary-row">
-    <div class="summary-row-icon">${iconHtml || ""}</div>
-    <div class="summary-row-body">
-      <div class="summary-row-label">${label}</div>
-      <div class="summary-row-value ${mono?"mono":""}">${val}</div>
-    </div>
-  </div>`;
-}
 
-/* ======= FOOTER ======= */
+/* ============ FOOTER ============ */
 function renderFooterNav() {
-  const last = state.step === 3;
+  const last = state.step === TOTAL_STEPS;
+  const allPhotos = state.photos.filter(p => p.status === "done").length === 6;
+  const canSubmit = last && state.accept && allPhotos;
+  const primaryDisabled = last && !canSubmit;
+
+  let primaryText, primaryIcon, primaryAction;
+  if (last) {
+    primaryText = "Enviar inspección";
+    primaryIcon = icon("sendIcon", 18, { sw: 2 });
+    primaryAction = canSubmit ? "submit()" : "void(0)";
+  } else {
+    primaryText = "Continuar";
+    primaryIcon = icon("arrowRight", 18, { sw: 2 });
+    primaryAction = "next()";
+  }
+
   return `<div class="footer-nav"><div class="footer-inner">
     <div class="footer-btns">
       ${state.step > 1 ? `<button class="btn-back" onclick="back()">${icon("arrowLeft", 17, { sw: 2 })} Atrás</button>` : ""}
-      <button class="btn-primary" onclick="${last ? "submit()" : "next()"}">
-        ${last ? "Enviar solicitud" : "Continuar"}
-        ${last ? icon("check", 18, { sw: 2.5 }) : icon("arrowRight", 18, { sw: 2 })}
+      <button class="btn-primary" ${primaryDisabled ? 'aria-disabled="true" disabled' : ''} onclick="${primaryAction}">
+        ${primaryText}
+        ${primaryIcon}
       </button>
     </div>
-    <div class="footer-note">${icon("shield", 13, { sw: 2 })} Tus datos están protegidos · ISO 27001</div>
+    <div class="footer-note">${icon("shield", 13, { sw: 2 })} La Regional de Seguros · Protegemos tus datos</div>
   </div></div>`;
 }
 
-/* ======= SUCCESS ======= */
+/* ============ SUCCESS ============ */
 function renderSuccess() {
   const ref = "LRDS-" + Math.floor(100000 + Math.random() * 900000);
-  const firstName = (state.data.nombre || "").split(" ")[0];
+  const firstName = (state.cliente.nombre || "").split(" ")[0];
   return `<div class="success">
     <div class="success-icon">${icon("checkCircle2", 44, { sw: 2 })}</div>
-    <div class="eyebrow">SOLICITUD RECIBIDA</div>
+    <div class="eyebrow">INSPECCIÓN RECIBIDA</div>
     <h1>¡Gracias, ${esc(firstName)}!</h1>
-    <p>Hemos recibido tu solicitud. Un ejecutivo te contactará en las próximas <strong>24 horas hábiles</strong> al correo o teléfono registrado.</p>
+    <p>Hemos recibido tu inspección. Un ejecutivo te contactará en las próximas <strong>24 horas hábiles</strong> al correo o teléfono registrado.</p>
     <div class="ref-card">
       <div class="ref-label">NÚMERO DE REFERENCIA</div>
       <div class="ref-num">${ref}</div>
       <div class="ref-note">Guárdalo para consultar el estado de tu solicitud.</div>
     </div>
-    <button class="btn-primary" onclick="resetApp()">Hacer otra solicitud</button>
-    <div class="footer-note" style="margin-top:16px">${icon("shield", 13, { sw: 2 })} Tus datos están protegidos · ISO 27001</div>
+    <div class="success-close">Ya puedes cerrar esta ventana.</div>
+    <button class="success-help-link" onclick="openHelp()">
+      ${icon("helpCircle", 15, { sw: 2 })}
+      ¿Necesitas ayuda?
+    </button>
   </div>`;
 }
 
-/* ======= EVENT HANDLERS ======= */
+/* ============ HANDLERS ============ */
 window.goTo = function(n) {
   state.step = n; saveState(); render();
   window.scrollTo({ top: 0, behavior: "smooth" }); haptic();
 };
-window.next = function() { if (state.step < 3) window.goTo(state.step + 1); };
+window.next = function() { if (state.step < TOTAL_STEPS) window.goTo(state.step + 1); };
 window.back = function() { if (state.step > 1) window.goTo(state.step - 1); };
-window.setIdType = function(opt) { state.data.idType = opt; saveState(); render(); haptic(); };
-window.setUsage  = function(opt) { state.data.usage  = opt; saveState(); render(); haptic(); };
+
 window.togglePhoto = function(id) {
   const p = state.photos.find(x => x.id === id);
   p.status = p.status === "done" ? "pending" : "done";
   saveState(); render(); haptic();
 };
-window.updateField = function(key, value) { state.data[key] = value; saveState(); };
 window.toggleAccept = function() { state.accept = !state.accept; saveState(); render(); haptic(); };
-window.submit = function() { state.submitted = true; render(); window.scrollTo({ top: 0 }); haptic(); };
-window.resetApp = function() {
-  state.submitted = false; state.step = 1; state.accept = false;
-  clearState(); render(); window.scrollTo({ top: 0 });
+
+window.submit = function() {
+  const allPhotos = state.photos.filter(p => p.status === "done").length === 6;
+  if (!state.accept || !allPhotos) return;
+  state.submitted = true;
+  clearState(); render(); window.scrollTo({ top: 0 }); haptic();
 };
 
-/* Scroll input enfocado por encima del teclado iOS */
-document.addEventListener("focusin", e => {
-  const t = e.target;
-  if (t && (t.tagName === "INPUT" || t.tagName === "SELECT" || t.tagName === "TEXTAREA")) {
-    setTimeout(() => { try { t.scrollIntoView({ block: "center", behavior: "smooth" }); } catch(_){} }, 280);
+window.openHelp = function() {
+  document.getElementById('help-sheet').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  haptic();
+};
+window.closeHelp = function(e) {
+  if (e && e.target && !e.target.classList.contains('sheet-backdrop') && e.target.id !== 'help-sheet' && e.type === 'click') {
+    if (!e.target.closest('.sheet-close')) return;
   }
-});
+  document.getElementById('help-sheet').classList.remove('open');
+  document.body.style.overflow = '';
+};
 
-/* Init */
 loadState();
 render();
 </script>
