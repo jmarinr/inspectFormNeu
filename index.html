@@ -582,11 +582,11 @@ const state = {
   submitted: false,
   accept: false,
   cliente: {
-    nombre: "Carlos Alberto Moreno Vásquez",
+    nombre: "Eduardo Alberto Moreno Vásquez",
     tipoId: "Cédula",
     numeroId: "8-745-892",
     telefono: "6234-5678",
-    email: "carlos.moreno@correo.com",
+    email: "eduardo.moreno@correo.com",
     direccion: "Panamá, San Francisco",
   },
   vehiculo: {
@@ -612,7 +612,7 @@ const state = {
 const HEROES = {
   1: {
     eyebrow: "PASO 1 DE 4",
-    title: "Hola, Carlos",
+    get title() { return `Hola, ${state.cliente.nombre.split(" ")[0]}`; },
     subtitle: "Bienvenido al proceso de inspección. Primero confirma que tus datos sean correctos.",
   },
   2: {
