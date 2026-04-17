@@ -76,27 +76,28 @@
   /* ============ HEADER ============ */
   .header {
     background: #FFFFFF;
-    padding: calc(12px + var(--sat)) 20px 18px;
+    padding: calc(14px + var(--sat)) 20px 18px;
     border-bottom: 1px solid var(--line);
-    position: relative;
-  }
-  .header::after {
-    content: ""; position: absolute; left: 0; right: 0; bottom: -1px;
-    height: 2px; background: linear-gradient(90deg, var(--accent) 0%, var(--sky) 100%);
-    opacity: .08;
   }
   .brand-row {
     display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 22px; gap: 12px;
+    gap: 12px;
   }
   .brand-lockup {
     display: flex; align-items: center; gap: 10px;
     min-width: 0; flex: 1;
   }
 
+  /* Stepper container (separado del header) */
+  .stepper-container {
+    background: #FFF;
+    padding: 14px 20px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+
   /* Logo oficial */
   .brand-logo-img {
-    height: 52px; width: auto; max-width: 220px;
+    height: 72px; width: auto; max-width: 280px;
     object-fit: contain; object-position: left center;
     display: none;
   }
@@ -127,6 +128,37 @@
     transition: transform .12s, background .15s, border-color .15s;
   }
   .help-btn:active { transform: scale(.94); background: var(--accent-soft); border-color: var(--accent-soft); }
+
+  /* ============ APP TITLE BAR ============ */
+  .app-title-bar {
+    background: var(--accent);
+    color: #FFF;
+    padding: 14px 20px;
+    display: flex; align-items: center; gap: 10px;
+    justify-content: center;
+    position: relative;
+  }
+  .app-title-bar::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0;
+    width: 4px; background: var(--sky);
+  }
+  .app-title-icon {
+    display: flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; border-radius: 7px;
+    background: rgba(255,255,255,.15);
+    color: #FFF; flex-shrink: 0;
+  }
+  .app-title-text {
+    font-size: 14px; font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+  .app-title-sub {
+    font-size: 11px; font-weight: 500;
+    color: rgba(255,255,255,.7);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-left: 4px;
+  }
 
   /* ============ STEPPER ============ */
   .stepper {
@@ -946,8 +978,14 @@ function renderHeader() {
         </div>
         <button class="help-btn" aria-label="Ayuda" onclick="openHelp()">${icon("helpCircle", 20)}</button>
       </div>
+    </header>
+    <div class="app-title-bar">
+      <div class="app-title-icon">${icon("car", 15, { sw: 2 })}</div>
+      <div class="app-title-text">Formulario de Asegurabilidad</div>
+    </div>
+    <div class="stepper-container">
       <div class="stepper">${parts.join('')}</div>
-    </header>`;
+    </div>`;
 }
 
 /* ============ PASO 1 · BIENVENIDA ============ */
