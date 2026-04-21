@@ -1,67 +1,1975 @@
--- ══════════════════════════════════════════════════════════════════════════
--- MIGRATION: Auto-cierre de órdenes históricas inconsistentes
--- Cierra todas las visitas donde todos los 6 formularios requeridos
--- están finalizados pero la visita sigue en status 'open'.
---
--- Ejecutar UNA sola vez en Supabase SQL Editor.
--- ══════════════════════════════════════════════════════════════════════════
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FFFFFF">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="LRDS">
+<meta name="format-detection" content="telephone=no">
+<meta name="description" content="La Regional de Seguros · Inspección digital de vehículo">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231E4E7A'/%3E%3Ctext x='32' y='44' font-family='system-ui' font-weight='700' font-size='32' fill='white' text-anchor='middle'%3ELR%3C/text%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%231E4E7A'/%3E%3Ctext x='90' y='124' font-family='system-ui' font-weight='700' font-size='90' fill='white' text-anchor='middle'%3ELR%3C/text%3E%3C/svg%3E">
+<title>La Regional · Inspección de vehículo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* Neutros */
+    --bg: #F4F7FA;          /* gris muy suave con tinte azul */
+    --surface: #FFFFFF;     /* cards */
+    --ink: #0F1F33;         /* título / texto principal */
+    --ink-soft: #405366;    /* texto body */
+    --ink-faint: #8395A7;   /* labels, meta */
+    --line: #E1E8F0;        /* bordes */
+    --line-soft: #EEF2F6;   /* separadores dentro de cards */
 
--- Los 6 form_codes requeridos (incluyendo aliases históricos)
--- La condición: para cada visita open, todos sus submissions finalizados
--- deben cubrir los 6 grupos de formularios requeridos.
+    /* Paleta LRDS */
+    --accent: #1E4E7A;       /* azul naval (títulos/CTAs del sitio) */
+    --accent-dark: #163A5C;  /* hover, textos sobre azul claro */
+    --accent-soft: #E8F0F7;  /* fondos suaves, badges */
+    --accent-tint: #F3F8FC;  /* fondos muy sutiles */
+    --sky: #8BB8D9;          /* azul celeste del sitio */
+    --sky-soft: #D6E5F1;
 
-WITH required_groups AS (
-  -- Cada "grupo" agrupa aliases del mismo formulario
-  SELECT unnest(ARRAY[
-    'mantenimiento', 'preventive-maintenance'
-  ]) AS form_code, 'mantenimiento' AS group_id
-  UNION ALL SELECT unnest(ARRAY[
-    'mantenimiento-ejecutado', 'executed-maintenance'
-  ]), 'mantenimiento-ejecutado'
-  UNION ALL SELECT unnest(ARRAY[
-    'equipment-v2', 'inventario-v2'
-  ]), 'equipment-v2'
-  UNION ALL SELECT unnest(ARRAY[
-    'sistema-ascenso', 'safety-system'
-  ]), 'sistema-ascenso'
-  UNION ALL SELECT unnest(ARRAY[
-    'additional-photo-report', 'additional-photo'
-  ]), 'additional-photo-report'
-  UNION ALL SELECT unnest(ARRAY[
-    'grounding-system-test', 'puesta-tierra'
-  ]), 'grounding-system-test'
-),
+    --ok: #1A7A3E;
+    --ok-soft: #E1F1E6;
+    --warn: #8A6B1F;
+    --warn-soft: #FBF4E8;
+    --warn-line: #E8D9B5;
+    --danger: #B3261E;
 
--- Para cada visita abierta, cuántos grupos distintos están finalizados
-finalized_groups_per_visit AS (
-  SELECT
-    s.site_visit_id,
-    COUNT(DISTINCT rg.group_id) AS finalized_group_count
-  FROM submissions s
-  JOIN required_groups rg ON s.form_code = rg.form_code
-  WHERE s.finalized = true
-    AND s.site_visit_id IS NOT NULL
-  GROUP BY s.site_visit_id
-),
+    --shadow-sm: 0 1px 2px rgba(15,31,51,.04);
+    --shadow-md: 0 2px 8px rgba(15,31,51,.06), 0 1px 2px rgba(15,31,51,.04);
+    --shadow-lg: 0 8px 24px rgba(15,31,51,.08), 0 2px 6px rgba(15,31,51,.04);
 
--- Visitas que tienen los 6 grupos completos pero siguen abiertas
-visits_to_close AS (
-  SELECT sv.id
-  FROM site_visits sv
-  JOIN finalized_groups_per_visit fgpv ON sv.id = fgpv.site_visit_id
-  WHERE sv.status = 'open'
-    AND fgpv.finalized_group_count >= 6
-)
+    --sat: env(safe-area-inset-top);
+    --sab: env(safe-area-inset-bottom);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+    scroll-behavior: smooth;
+  }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: "Manrope", system-ui, -apple-system, sans-serif;
+    font-weight: 400; line-height: 1.55; font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100dvh;
+  }
+  button {
+    font: inherit; color: inherit; background: none; border: none;
+    cursor: pointer; text-align: left;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  .mono  { font-family: "JetBrains Mono", ui-monospace, monospace; }
+  svg { display: block; flex-shrink: 0; }
 
--- Cerrar las visitas y registrar closed_at
-UPDATE site_visits
-SET
-  status    = 'closed',
-  closed_at = COALESCE(closed_at, updated_at, now())
-WHERE id IN (SELECT id FROM visits_to_close);
+  .app { max-width: 460px; margin: 0 auto; color: var(--ink); padding-bottom: calc(140px + var(--sab)); }
 
--- Ver cuántas visitas se cerraron
-SELECT COUNT(*) AS visitas_cerradas
-FROM site_visits
-WHERE status = 'closed'
-  AND closed_at IS NOT NULL;
+  /* ============ HEADER ============ */
+  .header {
+    background: #FFFFFF;
+    padding: calc(14px + var(--sat)) 20px 18px;
+    border-bottom: 1px solid var(--line);
+  }
+  .brand-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px;
+  }
+  .brand-lockup {
+    display: flex; align-items: center; gap: 10px;
+    min-width: 0; flex: 1;
+  }
+
+  /* Stepper container (separado del header) */
+  .stepper-container {
+    background: #FFF;
+    padding: 14px 20px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  /* Logo oficial */
+  .brand-logo-img {
+    height: 72px; width: auto; max-width: 280px;
+    object-fit: contain; object-position: left center;
+    display: none;
+  }
+  .brand-logo-img.loaded { display: block; }
+  .brand-logo-img.loaded ~ .brand-fallback { display: none; }
+
+  /* Fallback cuando no carga el logo */
+  .brand-fallback { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .brand-mark {
+    width: 42px; height: 42px; border-radius: 10px;
+    background: var(--accent); color: #FFF;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 17px; letter-spacing: -0.02em;
+  }
+  .brand-name {
+    font-size: 16px; font-weight: 700; color: var(--ink);
+    line-height: 1.1;
+  }
+  .brand-sub {
+    font-size: 12px; color: var(--ink-faint);
+    margin-top: 2px; font-weight: 500;
+  }
+
+  .help-btn {
+    width: 40px; height: 40px; border: 1px solid var(--line);
+    border-radius: 10px; color: var(--accent); background: #FFF;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform .12s, background .15s, border-color .15s;
+  }
+  .help-btn:active { transform: scale(.94); background: var(--accent-soft); border-color: var(--accent-soft); }
+
+  /* ============ APP TITLE BAR ============ */
+  .app-title-bar {
+    background: var(--accent);
+    color: #FFF;
+    padding: 14px 20px;
+    display: flex; align-items: center; gap: 10px;
+    justify-content: center;
+    position: relative;
+  }
+  .app-title-bar::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0;
+    width: 4px; background: var(--sky);
+  }
+  .app-title-icon {
+    display: flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; border-radius: 7px;
+    background: rgba(255,255,255,.15);
+    color: #FFF; flex-shrink: 0;
+  }
+  .app-title-text {
+    font-size: 14px; font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+  .app-title-sub {
+    font-size: 11px; font-weight: 500;
+    color: rgba(255,255,255,.7);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-left: 4px;
+  }
+
+  /* ============ STEPPER ============ */
+  .stepper {
+    display: flex; align-items: center; gap: 6px;
+    padding: 0 2px;
+  }
+  .step-dot-wrap {
+    background: transparent; border: none; padding: 4px;
+    cursor: pointer; min-height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    transition: opacity .12s;
+  }
+  .step-dot-wrap:active { opacity: .6; }
+  .step-dot {
+    width: 28px; height: 28px; border-radius: 999px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; transition: all .25s; flex-shrink: 0;
+    background: #FFF; border: 1.5px solid var(--line); color: var(--ink-faint);
+  }
+  .step-dot.done {
+    background: var(--accent); border-color: var(--accent); color: #FFF;
+  }
+  .step-dot.active {
+    background: var(--accent); border-color: var(--accent); color: #FFF;
+    box-shadow: 0 0 0 4px var(--accent-soft);
+  }
+  .step-line {
+    flex: 1; height: 2px; background: var(--line);
+    border-radius: 2px; transition: background .3s; min-width: 6px;
+  }
+  .step-line.done { background: var(--accent); }
+
+  /* ============ HERO ============ */
+  .hero { padding: 28px 20px 8px; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 0.1em; color: var(--accent);
+    background: var(--accent-soft);
+    padding: 5px 10px; border-radius: 6px; margin-bottom: 14px;
+    text-transform: uppercase;
+  }
+  .hero h1 {
+    font-weight: 700;
+    font-size: clamp(26px, 7.5vw, 32px);
+    line-height: 1.15; margin-bottom: 10px;
+    color: var(--ink); letter-spacing: -0.02em;
+  }
+  .hero p { font-size: 16px; color: var(--ink-soft); line-height: 1.5; }
+
+  /* ============ SECTION ============ */
+  .section { padding: 24px 20px; }
+  .section-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 16px; gap: 12px;
+  }
+  .section-head h2 {
+    font-size: 18px; font-weight: 700; color: var(--ink);
+    letter-spacing: -0.01em;
+  }
+  .section-meta { font-size: 13px; color: var(--ink-faint); font-weight: 600; white-space: nowrap; }
+
+  /* ============ CARDS ============ */
+  .card {
+    background: var(--surface);
+    border-radius: 16px;
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+  }
+  .card + .card { margin-top: 14px; }
+
+  /* ============ COTIZACIÓN CARD ============ */
+  .quote-card {
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+    color: #FFF;
+    border-radius: 16px;
+    padding: 18px 20px;
+    box-shadow: 0 4px 16px rgba(30,78,122,.2);
+    position: relative; overflow: hidden;
+  }
+  .quote-card::before {
+    content: ""; position: absolute; top: -40px; right: -40px;
+    width: 140px; height: 140px; border-radius: 50%;
+    background: rgba(139,184,217,.12);
+  }
+  .quote-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 10.5px; letter-spacing: 0.12em;
+    color: rgba(255,255,255,.85); font-weight: 700;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    position: relative; z-index: 1;
+  }
+  .quote-number {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 18px; color: #FFF;
+    font-weight: 500; letter-spacing: -0.01em;
+    margin-bottom: 10px;
+    word-break: break-all;
+    position: relative; z-index: 1;
+  }
+  .quote-type {
+    font-size: 14px; color: rgba(255,255,255,.92);
+    font-weight: 500; margin-bottom: 12px;
+    position: relative; z-index: 1;
+  }
+  .quote-meta {
+    display: flex; gap: 16px; flex-wrap: wrap;
+    padding-top: 12px; border-top: 1px solid rgba(255,255,255,.15);
+    position: relative; z-index: 1;
+  }
+  .quote-meta-item { min-width: 0; }
+  .quote-meta-label {
+    font-size: 10px; letter-spacing: 0.08em; color: rgba(255,255,255,.7);
+    font-weight: 700; text-transform: uppercase; margin-bottom: 2px;
+  }
+  .quote-meta-value {
+    font-size: 13px; color: #FFF; font-weight: 600;
+  }
+
+  /* ============ TIME BANNER ============ */
+  .time-banner {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 16px;
+    background: var(--accent-soft);
+    border: 1px solid var(--sky-soft);
+    border-radius: 14px;
+    margin-bottom: 16px;
+  }
+  .time-banner-icon {
+    width: 36px; height: 36px; min-width: 36px; border-radius: 10px;
+    background: var(--accent); color: #FFF;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .time-banner-title {
+    font-size: 14px; font-weight: 700; color: var(--accent-dark);
+    margin-bottom: 1px;
+  }
+  .time-banner-text {
+    font-size: 13px; color: var(--ink-soft); line-height: 1.35;
+  }
+
+  /* ============ PROCESS STEPS ============ */
+  .process-list {
+    background: var(--surface);
+    border-radius: 16px;
+    box-shadow: var(--shadow-md);
+    padding: 4px 18px;
+  }
+  .process-step {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .process-step:last-child { border-bottom: none; }
+  .process-num-circle {
+    width: 32px; height: 32px; min-width: 32px; border-radius: 50%;
+    background: var(--accent-soft); color: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 13px;
+  }
+  .process-body { flex: 1; min-width: 0; }
+  .process-title { font-size: 15px; font-weight: 600; color: var(--ink); margin-bottom: 1px; line-height: 1.25; }
+  .process-sub { font-size: 13px; color: var(--ink-soft); line-height: 1.4; }
+  .process-icon-right {
+    color: var(--ink-faint); opacity: .5;
+  }
+
+  /* ============ TRUST BOX ============ */
+  .trust-box {
+    display: flex; gap: 12px; padding: 14px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow-sm);
+  }
+  .trust-icon-wrap {
+    flex-shrink: 0;
+    width: 36px; height: 36px; border-radius: 10px;
+    background: var(--ok-soft); color: var(--ok);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .trust-title { font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 2px; }
+  .trust-text { font-size: 13px; color: var(--ink-soft); line-height: 1.45; }
+
+  /* ============ DATA ROWS ============ */
+  .data-card {
+    background: var(--surface);
+    border-radius: 16px;
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+  }
+  .data-row {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .data-row:last-child { border-bottom: none; }
+  .data-icon {
+    width: 36px; height: 36px; min-width: 36px; border-radius: 10px;
+    background: var(--accent-tint); color: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .data-body { flex: 1; min-width: 0; }
+  .data-label {
+    font-size: 11px; color: var(--ink-faint); font-weight: 600;
+    margin-bottom: 2px; letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .data-value {
+    font-size: 15px; color: var(--ink); font-weight: 600;
+    word-break: break-word; line-height: 1.3;
+  }
+  .data-value .with-flag { display: inline-flex; align-items: center; gap: 6px; }
+  .data-value .flag { font-size: 16px; line-height: 1; }
+  .data-value .ccode {
+    font-family: "JetBrains Mono", monospace; font-weight: 500;
+    color: var(--ink-soft); margin-right: 2px;
+  }
+  .data-value .phone-num { font-family: "JetBrains Mono", monospace; letter-spacing: 0.01em; }
+
+  .data-note {
+    margin-top: 12px; padding: 12px 14px;
+    font-size: 13px; color: var(--ink-soft);
+    background: var(--warn-soft); border: 1px solid var(--warn-line);
+    border-radius: 12px; line-height: 1.4;
+    display: flex; gap: 10px; align-items: flex-start;
+  }
+  .data-note a {
+    color: var(--accent); text-decoration: underline; font-weight: 600; cursor: pointer;
+  }
+  .data-note-icon {
+    color: var(--warn); flex-shrink: 0; margin-top: 1px;
+  }
+
+  /* ============ PHOTOS ============ */
+  .photo-intro {
+    display: flex; gap: 12px; padding: 14px;
+    background: var(--accent-soft);
+    border: 1px solid var(--sky-soft);
+    border-radius: 14px; margin-bottom: 18px;
+  }
+  .photo-intro-icon {
+    flex-shrink: 0; color: var(--accent); margin-top: 1px;
+  }
+  .photo-intro-title { font-size: 14px; font-weight: 700; color: var(--accent-dark); margin-bottom: 2px; }
+  .photo-intro-text { font-size: 13px; color: var(--ink-soft); line-height: 1.45; }
+
+  .photo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .photo-slot {
+    border-radius: 14px; overflow: hidden;
+    display: flex; flex-direction: column;
+    min-height: 190px; padding: 0; cursor: pointer;
+    background: var(--surface); border: 1.5px dashed var(--line);
+    transition: transform .1s, border-color .15s;
+    box-shadow: var(--shadow-sm);
+  }
+  .photo-slot:active { transform: scale(.98); }
+  .photo-slot.captured {
+    background: var(--surface); border: 1px solid var(--line);
+    border-style: solid;
+  }
+  .photo-thumb {
+    flex: 1; position: relative; min-height: 120px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bg);
+  }
+  .photo-slot.captured .photo-thumb {
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+  }
+  .photo-badge {
+    position: absolute; top: 8px; right: 8px;
+    width: 30px; height: 30px; border-radius: 999px;
+    background: #FFF; border: 1px solid var(--line);
+    color: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: var(--shadow-sm);
+  }
+  .photo-slot.captured .photo-badge {
+    background: var(--ok); border-color: var(--ok); color: #FFF;
+  }
+  .photo-caption {
+    padding: 10px 12px; background: var(--surface);
+    border-top: 1px solid var(--line-soft);
+  }
+  .photo-label { font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 2px; }
+  .photo-hint { font-size: 11px; color: var(--ink-faint); line-height: 1.3; }
+  .photo-hint.done {
+    color: var(--ok); font-weight: 600;
+    display: inline-flex; align-items: center; gap: 3px;
+  }
+
+  /* ============ PROGRESS ============ */
+  .progress-card {
+    margin-top: 16px; padding: 14px 16px;
+    background: var(--surface); border-radius: 14px;
+    box-shadow: var(--shadow-sm);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .progress-count { font-size: 14px; white-space: nowrap; }
+  .progress-count .big {
+    font-weight: 800; font-size: 20px;
+    color: var(--accent); margin-right: 4px;
+  }
+  .progress-count .soft { color: var(--ink-soft); font-weight: 500; }
+  .progress-bar {
+    flex: 1; height: 6px; background: var(--line);
+    border-radius: 999px; overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; background: var(--accent);
+    border-radius: 999px; transition: width .3s;
+  }
+  .progress-pct {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px; color: var(--accent); font-weight: 700;
+  }
+
+  /* ============ PASO 5 ============ */
+  .response-card {
+    display: flex; gap: 12px; padding: 16px;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+    color: #FFF;
+    border-radius: 14px; margin-bottom: 18px;
+    box-shadow: 0 4px 16px rgba(30,78,122,.2);
+  }
+  .response-icon {
+    width: 40px; height: 40px; min-width: 40px; border-radius: 10px;
+    background: rgba(255,255,255,.18);
+    display: flex; align-items: center; justify-content: center; color: #FFF;
+    flex-shrink: 0;
+  }
+  .response-title { font-size: 15px; font-weight: 700; margin-bottom: 2px; }
+  .response-text { font-size: 13px; color: rgba(255,255,255,.85); line-height: 1.45; }
+
+  .warning-box {
+    display: flex; gap: 10px; padding: 12px 14px;
+    background: var(--warn-soft); border-radius: 12px;
+    border: 1px solid var(--warn-line); margin-bottom: 16px;
+  }
+  .warning-icon { color: var(--warn); margin-top: 1px; flex-shrink: 0; }
+  .warning-text { font-size: 13px; color: #5C4818; line-height: 1.45; }
+  .warning-text a { color: var(--accent); text-decoration: underline; font-weight: 700; cursor: pointer; }
+
+  .photo-gallery {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
+    margin-top: 12px;
+  }
+  .gallery-cell {
+    aspect-ratio: 1/1; border-radius: 10px; overflow: hidden;
+    position: relative; display: flex; align-items: center; justify-content: center;
+    background: var(--bg); border: 1.5px dashed var(--line);
+  }
+  .gallery-cell.done {
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+    border: 1px solid var(--accent); border-style: solid;
+  }
+  .gallery-num {
+    position: absolute; bottom: 3px; left: 3px;
+    background: var(--ink); color: #FFF;
+    font-size: 10px; padding: 1px 5px; border-radius: 3px;
+    font-weight: 700;
+  }
+
+  .accept-card {
+    background: var(--surface);
+    border-radius: 14px;
+    padding: 14px;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--line);
+  }
+  .accept-row {
+    display: flex; align-items: flex-start; gap: 12px;
+    cursor: pointer; padding: 4px;
+    transition: opacity .12s;
+  }
+  .accept-row:active { opacity: .7; }
+  .checkbox {
+    width: 22px; height: 22px; min-width: 22px; border-radius: 6px;
+    border: 2px solid var(--line); background: #FFF;
+    display: flex; align-items: center; justify-content: center;
+    margin-top: 1px; transition: all .15s;
+  }
+  .checkbox.checked { border-color: var(--accent); background: var(--accent); color: #FFF; }
+  .accept-text { font-size: 13.5px; color: var(--ink-soft); line-height: 1.5; }
+  .accept-text strong { color: var(--ink); font-weight: 700; }
+  .accept-text a { color: var(--accent); text-decoration: underline; font-weight: 600; }
+
+  /* ============ FOOTER NAV ============ */
+  .footer-nav {
+    position: fixed; left: 0; right: 0; bottom: 0;
+    padding: 14px 20px calc(14px + var(--sab));
+    background: rgba(255, 255, 255, 0.92);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    border-top: 1px solid var(--line);
+    z-index: 10;
+  }
+  .footer-inner { max-width: 460px; margin: 0 auto; }
+  .footer-btns { display: flex; gap: 10px; }
+  .btn-back {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    background: #FFF; color: var(--ink);
+    border: 1.5px solid var(--line); border-radius: 12px;
+    padding: 14px 16px; font-size: 15px; font-weight: 700;
+    min-height: 52px; flex: 0 0 auto;
+    transition: transform .1s, background .15s, border-color .15s;
+  }
+  .btn-back:active {
+    transform: scale(.97); background: var(--accent-soft); border-color: var(--accent-soft);
+  }
+  .btn-primary {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    background: var(--accent); color: #FFF;
+    border-radius: 12px; padding: 15px 20px;
+    font-size: 16px; font-weight: 700;
+    min-height: 52px; flex: 1;
+    transition: transform .1s, background .2s, opacity .2s;
+    box-shadow: 0 2px 8px rgba(30,78,122,.25);
+  }
+  .btn-primary:active { transform: scale(.98); background: var(--accent-dark); }
+  .btn-primary:disabled,
+  .btn-primary[aria-disabled="true"] {
+    background: #CBD4DD; color: #FFF;
+    cursor: not-allowed; box-shadow: none;
+  }
+  .btn-primary:disabled:active,
+  .btn-primary[aria-disabled="true"]:active { transform: none; background: #CBD4DD; }
+  @media (hover: hover) {
+    .btn-primary:not(:disabled):not([aria-disabled="true"]):hover { background: var(--accent-dark); }
+  }
+  .footer-note {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    margin-top: 10px; font-size: 12px; color: var(--ink-faint);
+  }
+
+  /* ============ SUCCESS ============ */
+  .success {
+    max-width: 460px; margin: 0 auto;
+    min-height: 100dvh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: max(60px, var(--sat)) 24px max(40px, var(--sab));
+  }
+  .success-icon {
+    width: 84px; height: 84px; border-radius: 50%;
+    background: var(--ok-soft); color: var(--ok);
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 24px;
+    animation: popIn .6s cubic-bezier(.34,1.56,.64,1);
+  }
+  .success h1 {
+    font-weight: 700;
+    font-size: clamp(26px, 8vw, 32px);
+    line-height: 1.15; margin-bottom: 10px; color: var(--ink);
+    letter-spacing: -0.02em;
+  }
+  .success p { font-size: 15px; color: var(--ink-soft); margin-bottom: 24px; max-width: 340px; line-height: 1.55; }
+  .success p strong { color: var(--ink); font-weight: 700; }
+  .ref-card {
+    width: 100%; background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px; padding: 16px 18px; margin-bottom: 20px;
+    text-align: left;
+    box-shadow: var(--shadow-sm);
+  }
+  .ref-label { font-size: 10.5px; letter-spacing: 0.1em; color: var(--ink-faint); margin-bottom: 4px; font-weight: 700; text-transform: uppercase; }
+  .ref-num { font-family: "JetBrains Mono", monospace; font-size: 20px; color: var(--ink); font-weight: 500; }
+  .ref-note { font-size: 12px; color: var(--ink-faint); margin-top: 6px; }
+  .success-close { font-size: 13px; color: var(--ink-faint); margin-top: 14px; }
+  .success-help-link {
+    margin-top: 20px; padding: 10px 16px;
+    color: var(--accent); font-size: 14px; font-weight: 600;
+    border: 1px solid var(--line); border-radius: 10px;
+    background: #FFF;
+    display: inline-flex; align-items: center; gap: 6px;
+    transition: transform .1s;
+  }
+  .success-help-link:active { transform: scale(.97); }
+
+  /* ============ BOTTOM SHEET ============ */
+  .sheet-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(15, 31, 51, 0);
+    pointer-events: none;
+    transition: background .25s;
+    z-index: 100;
+    display: flex; align-items: flex-end; justify-content: center;
+  }
+  .sheet-backdrop.open {
+    background: rgba(15, 31, 51, .45);
+    pointer-events: auto;
+  }
+  .sheet {
+    width: 100%; max-width: 460px;
+    background: #FFF;
+    border-radius: 20px 20px 0 0;
+    padding: 8px 20px calc(20px + var(--sab));
+    transform: translateY(100%);
+    transition: transform .32s cubic-bezier(.32,.72,0,1);
+    max-height: 88vh; overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .sheet-backdrop.open .sheet { transform: translateY(0); }
+  .sheet-handle {
+    width: 40px; height: 5px; border-radius: 999px;
+    background: var(--line); margin: 8px auto 16px;
+  }
+  .sheet-title {
+    font-size: 22px; font-weight: 700; color: var(--ink);
+    margin-bottom: 4px; letter-spacing: -0.01em;
+  }
+  .sheet-subtitle { font-size: 14px; color: var(--ink-soft); margin-bottom: 18px; line-height: 1.4; }
+  .sheet-action {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 16px; margin-bottom: 10px;
+    background: #FFF;
+    border: 1px solid var(--line);
+    border-radius: 13px;
+    color: var(--ink); text-decoration: none;
+    font: inherit; width: 100%;
+    transition: transform .1s, background .15s, border-color .15s;
+  }
+  .sheet-action:active {
+    transform: scale(.98); background: var(--accent-soft); border-color: var(--sky-soft);
+  }
+  .sheet-action-icon {
+    width: 40px; height: 40px; border-radius: 10px;
+    background: var(--accent); color: #FFF;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .sheet-action-icon.wa { background: #25D366; }
+  .sheet-action-body { flex: 1; min-width: 0; }
+  .sheet-action-title { font-size: 15px; font-weight: 700; color: var(--ink); margin-bottom: 1px; }
+  .sheet-action-sub { font-size: 13px; color: var(--ink-soft); line-height: 1.3; }
+  .sheet-action-arrow { color: var(--ink-faint); }
+
+  .sheet-divider {
+    font-size: 10.5px; letter-spacing: 0.12em; color: var(--ink-faint);
+    font-weight: 700; margin: 20px 4px 8px; text-transform: uppercase;
+  }
+  .faq-item { padding: 14px 4px; border-bottom: 1px solid var(--line-soft); }
+  .faq-item:last-child { border-bottom: none; }
+  .faq-q { font-size: 14.5px; font-weight: 700; color: var(--ink); margin-bottom: 5px; line-height: 1.35; }
+  .faq-a { font-size: 13.5px; color: var(--ink-soft); line-height: 1.5; }
+
+  .sheet-close {
+    width: 100%; margin-top: 8px; padding: 14px;
+    background: #FFF; border: 1px solid var(--line);
+    border-radius: 12px; color: var(--ink);
+    font-size: 15px; font-weight: 700; min-height: 48px;
+  }
+
+  /* ============ ANIMATIONS ============ */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .step-enter { animation: fadeUp .28s ease-out; }
+  @keyframes popIn {
+    0%   { opacity: 0; transform: scale(.7); }
+    60%  { opacity: 1; transform: scale(1.08); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: .5; }
+  }
+
+  /* ============ ANALYZING SCREEN ============ */
+  .analyzing-screen {
+    max-width: 460px; margin: 0 auto;
+    min-height: 100dvh;
+    display: flex; flex-direction: column;
+    padding: calc(40px + var(--sat)) 24px calc(40px + var(--sab));
+  }
+  .analyzing-header {
+    text-align: center; margin-bottom: 36px;
+  }
+  .analyzing-ai-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: linear-gradient(135deg, var(--accent) 0%, #2563A8 100%);
+    color: #FFF; padding: 8px 16px; border-radius: 999px;
+    font-size: 12px; font-weight: 700; letter-spacing: 0.08em;
+    text-transform: uppercase; margin-bottom: 20px;
+    box-shadow: 0 4px 14px rgba(30,78,122,.3);
+  }
+  .analyzing-spinner {
+    width: 72px; height: 72px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent) 0%, #2563A8 100%);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 20px;
+    box-shadow: 0 6px 20px rgba(30,78,122,.25);
+    position: relative;
+  }
+  .analyzing-spinner::before {
+    content: "";
+    position: absolute; inset: -4px;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    border-top-color: var(--accent);
+    border-right-color: var(--sky);
+    animation: spin 1.2s linear infinite;
+  }
+  .analyzing-title {
+    font-size: 22px; font-weight: 700; color: var(--ink);
+    letter-spacing: -0.01em; margin-bottom: 6px;
+  }
+  .analyzing-subtitle {
+    font-size: 14px; color: var(--ink-soft); line-height: 1.4;
+  }
+  .analyzing-list {
+    background: var(--surface);
+    border-radius: 16px;
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+  .analyzing-item {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line-soft);
+    transition: background .2s;
+  }
+  .analyzing-item:last-child { border-bottom: none; }
+  .analyzing-item.active { background: var(--accent-tint); }
+  .analyzing-item.done   { background: #F0FBF3; }
+  .analyzing-item.error  { background: #FDF4F4; }
+  .analyzing-item-icon {
+    width: 36px; height: 36px; min-width: 36px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .analyzing-item-icon.pending { background: var(--bg); color: var(--ink-faint); }
+  .analyzing-item-icon.active  { background: var(--accent); color: #FFF; }
+  .analyzing-item-icon.done    { background: var(--ok-soft); color: var(--ok); }
+  .analyzing-item-icon.error   { background: #FDEAEA; color: var(--danger); }
+  .spin-icon { animation: spin 1s linear infinite; }
+  .analyzing-item-body { flex: 1; min-width: 0; }
+  .analyzing-item-label {
+    font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 2px;
+  }
+  .analyzing-item-status {
+    font-size: 12px; color: var(--ink-faint); font-weight: 500;
+  }
+  .analyzing-item-status.active { color: var(--accent); animation: pulse 1.4s ease-in-out infinite; }
+  .analyzing-item-status.done   { color: var(--ok); }
+  .analyzing-item-status.error  { color: var(--danger); }
+  .analyzing-overall-progress {
+    background: var(--surface); border-radius: 14px;
+    border: 1px solid var(--line);
+    padding: 14px 18px;
+    box-shadow: var(--shadow-sm);
+  }
+  .analyzing-pct-row {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 8px;
+  }
+  .analyzing-pct-label { font-size: 13px; color: var(--ink-soft); font-weight: 600; }
+  .analyzing-pct-val {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 16px; color: var(--accent); font-weight: 700;
+  }
+  .analyzing-bar {
+    height: 8px; background: var(--line); border-radius: 999px; overflow: hidden;
+  }
+  .analyzing-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent) 0%, var(--sky) 100%);
+    border-radius: 999px;
+    transition: width .5s ease;
+  }
+  .analyzing-note {
+    text-align: center; font-size: 12px; color: var(--ink-faint);
+    margin-top: 16px; line-height: 1.4;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+
+  /* ============ RESULTS SCREEN ============ */
+  .results-screen {
+    max-width: 460px; margin: 0 auto;
+    padding-bottom: calc(120px + var(--sab));
+  }
+  .results-header {
+    padding: calc(14px + var(--sat)) 20px 16px;
+    background: #FFF;
+    border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .results-header-icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: var(--accent); color: #FFF;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .results-header-title { font-size: 15px; font-weight: 700; color: var(--ink); }
+  .results-header-sub   { font-size: 12px; color: var(--ink-faint); font-weight: 500; }
+
+  /* Decision badge */
+  .decision-band {
+    padding: 24px 20px;
+    display: flex; flex-direction: column; align-items: center;
+    text-align: center;
+  }
+  .decision-badge {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 10px 22px; border-radius: 999px;
+    font-size: 14px; font-weight: 800; letter-spacing: 0.06em;
+    text-transform: uppercase; margin-bottom: 10px;
+    animation: popIn .5s cubic-bezier(.34,1.56,.64,1);
+  }
+  .decision-badge.apto    { background: var(--ok-soft); color: var(--ok); }
+  .decision-badge.revision { background: var(--warn-soft); color: var(--warn); border: 1px solid var(--warn-line); }
+  .decision-badge.noApto  { background: #FDEAEA; color: var(--danger); }
+  .decision-main {
+    font-size: 26px; font-weight: 700; letter-spacing: -0.02em;
+    margin-bottom: 6px; line-height: 1.15;
+  }
+  .decision-main.apto    { color: var(--ok); }
+  .decision-main.revision { color: var(--warn); }
+  .decision-main.noApto  { color: var(--danger); }
+  .decision-reason {
+    font-size: 14px; color: var(--ink-soft); line-height: 1.45;
+    max-width: 320px;
+  }
+  .decision-recommendation {
+    margin-top: 12px; padding: 10px 16px;
+    background: var(--surface); border-radius: 12px;
+    border: 1px solid var(--line);
+    font-size: 13px; color: var(--ink-soft); text-align: left;
+    line-height: 1.5; width: 100%;
+  }
+  .decision-recommendation strong { color: var(--ink); font-weight: 700; }
+
+  /* Vehicle ID section */
+  .result-section { padding: 0 20px 20px; }
+  .result-section-head {
+    display: flex; align-items: center; gap: 8px;
+    padding: 16px 0 12px;
+    border-top: 1px solid var(--line-soft);
+    margin-bottom: 4px;
+  }
+  .result-section-head-icon {
+    width: 26px; height: 26px; border-radius: 7px;
+    background: var(--accent-soft); color: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .result-section-title {
+    font-size: 14px; font-weight: 700; color: var(--ink);
+    letter-spacing: 0.02em; text-transform: uppercase;
+    font-size: 11.5px; color: var(--ink-faint);
+  }
+  .vehicle-id-card {
+    background: var(--surface);
+    border-radius: 14px; overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--line);
+  }
+  .vehicle-id-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 16px;
+    background: var(--bg); border-bottom: 1px solid var(--line-soft);
+  }
+  .vehicle-id-col-title {
+    font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--ink-faint);
+  }
+  .vehicle-id-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 11px 16px; border-bottom: 1px solid var(--line-soft);
+    gap: 8px;
+  }
+  .vehicle-id-row:last-child { border-bottom: none; }
+  .vehicle-id-field { font-size: 11px; color: var(--ink-faint); font-weight: 600; min-width: 60px; }
+  .vehicle-id-detected { font-size: 14px; font-weight: 600; color: var(--ink); flex: 1; }
+  .vehicle-id-declared { font-size: 13px; color: var(--ink-soft); min-width: 80px; text-align: right; }
+  .match-chip {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 2px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+  .match-chip.match       { background: var(--ok-soft); color: var(--ok); }
+  .match-chip.no_match    { background: #FDEAEA; color: var(--danger); }
+  .match-chip.inconclusive { background: var(--warn-soft); color: var(--warn); }
+
+  /* Damages per photo */
+  .damages-list { display: flex; flex-direction: column; gap: 10px; }
+  .damage-card {
+    background: var(--surface); border-radius: 14px;
+    border: 1px solid var(--line); overflow: hidden;
+    box-shadow: var(--shadow-sm);
+  }
+  .damage-card-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 11px 14px;
+    background: var(--bg); border-bottom: 1px solid var(--line-soft);
+  }
+  .damage-photo-num {
+    width: 24px; height: 24px; border-radius: 6px;
+    background: var(--accent); color: #FFF;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800; flex-shrink: 0;
+  }
+  .damage-photo-label { font-size: 13px; font-weight: 700; color: var(--ink); flex: 1; }
+  .damage-card-body { padding: 10px 14px; }
+  .damage-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 8px 0; border-bottom: 1px solid var(--line-soft);
+  }
+  .damage-item:last-child { border-bottom: none; }
+  .sev-chip {
+    display: inline-flex; align-items: center;
+    padding: 3px 9px; border-radius: 6px;
+    font-size: 10.5px; font-weight: 800; letter-spacing: 0.04em;
+    text-transform: uppercase; flex-shrink: 0; margin-top: 1px;
+  }
+  .sev-none     { background: var(--line-soft); color: var(--ink-faint); }
+  .sev-leve     { background: var(--accent-soft); color: var(--accent-dark); }
+  .sev-media    { background: var(--warn-soft); color: var(--warn); }
+  .sev-alta     { background: #FDE8D4; color: #9C4B0D; }
+  .sev-critica  { background: #FDEAEA; color: var(--danger); }
+  .damage-info { flex: 1; min-width: 0; }
+  .damage-type { font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 2px; }
+  .damage-location { font-size: 12px; color: var(--ink-faint); margin-bottom: 2px; }
+  .damage-obs { font-size: 12px; color: var(--ink-soft); line-height: 1.4; }
+  .damage-conf {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px; color: var(--ink-faint);
+    flex-shrink: 0; margin-top: 3px;
+  }
+  .no-damage-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 0; color: var(--ok); font-size: 13px; font-weight: 600;
+  }
+
+  /* Fraud signals */
+  .fraud-band {
+    margin: 0 20px 16px;
+    background: #FDF0F0;
+    border: 1.5px solid #F5C6C6;
+    border-radius: 14px; overflow: hidden;
+  }
+  .fraud-band-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px;
+    background: #FDE8E8; border-bottom: 1px solid #F5C6C6;
+  }
+  .fraud-band-title { font-size: 13px; font-weight: 700; color: var(--danger); }
+  .fraud-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 11px 14px; border-bottom: 1px solid #F5C6C6;
+  }
+  .fraud-item:last-child { border-bottom: none; }
+  .fraud-item-icon {
+    width: 28px; height: 28px; border-radius: 7px;
+    background: #FDEAEA; color: var(--danger);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; margin-top: 1px;
+  }
+  .fraud-signal-name { font-size: 12.5px; font-weight: 700; color: var(--danger); margin-bottom: 2px; }
+  .fraud-signal-obs  { font-size: 12px; color: #7B2020; line-height: 1.4; }
+  .fraud-signal-conf {
+    font-family: "JetBrains Mono", monospace; font-size: 10px;
+    color: #C06060; margin-top: 2px; font-weight: 600;
+  }
+
+  /* Results footer */
+  .results-footer {
+    position: fixed; left: 0; right: 0; bottom: 0;
+    padding: 14px 20px calc(14px + var(--sab));
+    background: rgba(255,255,255,.92);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    border-top: 1px solid var(--line); z-index: 10;
+  }
+  .results-footer-inner { max-width: 460px; margin: 0 auto; }
+  .results-footer-note {
+    text-align: center; font-size: 11.5px; color: var(--ink-faint);
+    margin-top: 8px;
+    display: flex; align-items: center; justify-content: center; gap: 5px;
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<!-- Bottom sheet de ayuda -->
+<div id="help-sheet" class="sheet-backdrop" onclick="closeHelp(event)">
+  <div class="sheet" onclick="event.stopPropagation()">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">¿En qué te ayudamos?</div>
+    <div class="sheet-subtitle">Estamos disponibles para acompañarte con tu inspección.</div>
+
+    <a class="sheet-action" href="https://wa.me/50763005737?text=Hola%2C%20necesito%20ayuda%20con%20mi%20inspecci%C3%B3n%20de%20auto%20LRDS" target="_blank" rel="noopener">
+      <div class="sheet-action-icon wa">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="#FFF" xmlns="http://www.w3.org/2000/svg"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.174.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.885 3.488"/></svg>
+      </div>
+      <div class="sheet-action-body">
+        <div class="sheet-action-title">WhatsApp</div>
+        <div class="sheet-action-sub">+507 6300 5737 · Respuesta inmediata</div>
+      </div>
+      <div class="sheet-action-arrow">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </div>
+    </a>
+
+    <a class="sheet-action" href="tel:+5078005737">
+      <div class="sheet-action-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      </div>
+      <div class="sheet-action-body">
+        <div class="sheet-action-title">Llámanos</div>
+        <div class="sheet-action-sub">800-LRDS (800-5737) · Asistencia 24 h</div>
+      </div>
+      <div class="sheet-action-arrow">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </div>
+    </a>
+
+    <div class="sheet-divider">Preguntas frecuentes</div>
+
+    <div class="faq-item">
+      <div class="faq-q">¿Por qué necesitan las fotografías?</div>
+      <div class="faq-a">Las fotos nos permiten verificar el estado actual de tu vehículo al iniciar la póliza. Es un requisito estándar para emitir la cobertura.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">¿Qué hago si no tengo buena luz?</div>
+      <div class="faq-a">Intenta tomar las fotos durante el día en un área abierta. Evita sombras fuertes sobre el vehículo. Si no es posible, contáctanos para reagendar.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">¿Mis datos están seguros?</div>
+      <div class="faq-a">Sí. Tu información se usa únicamente para procesar esta inspección y se almacena bajo los estándares de seguridad de La Regional de Seguros.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">Los datos mostrados no son míos o están incorrectos</div>
+      <div class="faq-a">No envíes esta inspección. Comunícate con nosotros por WhatsApp o llamada y te ayudamos a corregirlo.</div>
+    </div>
+
+    <button class="sheet-close" onclick="closeHelp()">Cerrar</button>
+  </div>
+</div>
+
+<script>
+/* ============ CONFIG ============ */
+// Reemplaza con tu API key de Anthropic (console.anthropic.com)
+const ANTHROPIC_API_KEY = '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';
+
+/* ============ STATE ============ */
+const STORAGE_KEY = 'lrds_inspect_v5';
+const TOTAL_STEPS = 5;
+
+const state = {
+  step: 1,
+  submitted: false,
+  accept: false,
+  // Nuevo: análisis IA
+  mode: 'form',           // 'form' | 'analyzing' | 'results'
+  analysisResults: [],    // array de 6 resultados
+  analysisProgress: [],   // 'pending'|'active'|'done'|'error' x6
+  caso: {
+    numeroCotizacion: "LRDS-AUT-2026-04172",
+    tipoPoliza: "Póliza de Automóvil Particular",
+    fechaEmision: "17 abr 2026",
+    corredor: "Jeffrey Martínez",
+  },
+  cliente: {
+    nombre: "Eduardo Alberto Moreno Vásquez",
+    tipoId: "Cédula",
+    numeroId: "8-745-892",
+    telefono: "6234-5678",
+    email: "eduardo.moreno@correo.com",
+    direccion: "Panamá, San Francisco",
+  },
+  vehiculo: {
+    placa: "BAN-1234",
+    marca: "Toyota",
+    modelo: "Corolla Cross",
+    anio: "2023",
+    color: "Plata",
+    vin: "1HGBH41JXMN109186",
+    uso: "Particular",
+    kilometraje: "42,180",
+  },
+  photos: [
+    { id: 1, label: "Frente del auto",    hint: "Vista completa de frente", status: "pending" },
+    { id: 2, label: "Parte trasera",       hint: "Con placa visible",        status: "pending" },
+    { id: 3, label: "Lado derecho",        hint: "Todo el costado",          status: "pending" },
+    { id: 4, label: "Lado izquierdo",      hint: "Todo el costado",          status: "pending" },
+    { id: 5, label: "Esquina delantera",   hint: "Vista diagonal (¾)",       status: "pending" },
+    { id: 6, label: "Esquina trasera",     hint: "Vista diagonal (¾)",       status: "pending" },
+  ],
+};
+
+const HEROES = {
+  1: {
+    eyebrow: "PASO 1 DE 5 · BIENVENIDA",
+    get title() { return `Hola, ${state.cliente.nombre.split(" ")[0]}`; },
+    subtitle: "Bienvenido a tu proceso de inspección digital. Así es como funciona.",
+  },
+  2: {
+    eyebrow: "PASO 2 DE 5 · CLIENTE",
+    title: "Información personal",
+    subtitle: "Verifica que tus datos sean correctos antes de continuar.",
+  },
+  3: {
+    eyebrow: "PASO 3 DE 5 · VEHÍCULO",
+    title: "Datos del vehículo",
+    subtitle: "Confirma que la información de tu auto coincida con la póliza.",
+  },
+  4: {
+    eyebrow: "PASO 4 DE 5 · FOTOS",
+    title: "Toma 6 fotografías",
+    subtitle: "Captura tu vehículo desde distintos ángulos con la cámara de tu teléfono.",
+  },
+  5: {
+    eyebrow: "PASO 5 DE 5 · ENVÍO",
+    title: "Revisa y envía",
+    subtitle: "Último paso. Verifica las fotografías y autoriza el envío.",
+  },
+};
+
+/* ============ PERSISTENCE ============ */
+function saveState() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      step: state.step, photos: state.photos, accept: state.accept,
+    }));
+  } catch(e) {}
+}
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const p = JSON.parse(raw);
+    if (p.photos && Array.isArray(p.photos) && p.photos.length === 6) state.photos = p.photos;
+    if (typeof p.step === 'number' && p.step >= 1 && p.step <= TOTAL_STEPS) state.step = p.step;
+    if (typeof p.accept === 'boolean') state.accept = p.accept;
+  } catch(e) {}
+}
+function clearState() { try { localStorage.removeItem(STORAGE_KEY); } catch(e) {} }
+
+/* ============ ICONOS ============ */
+const ICON_PATHS = {
+  shield:        `<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>`,
+  check:         `<polyline points="20 6 9 17 4 12"/>`,
+  arrowRight:    `<line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>`,
+  arrowLeft:     `<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>`,
+  info:          `<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>`,
+  helpCircle:    `<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>`,
+  camera:        `<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>`,
+  fileText:      `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>`,
+  sendIcon:      `<path d="M21.5 12H2.5M12 2.5l9.5 9.5-9.5 9.5"/>`,
+  user:          `<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>`,
+  car:           `<path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/>`,
+  mail:          `<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>`,
+  phone:         `<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>`,
+  mapPin:        `<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>`,
+  checkCircle2:  `<path d="M21 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>`,
+  clock:         `<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>`,
+  key:           `<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>`,
+  gauge:         `<path d="M12 15l3.5-3.5M20.3 18a9 9 0 1 0-16.6 0"/>`,
+  palette:       `<circle cx="12" cy="12" r="10"/><circle cx="7.5" cy="10.5" r="1"/><circle cx="12" cy="7.5" r="1"/><circle cx="16.5" cy="10.5" r="1"/><path d="M12 22a5 5 0 0 1-5-5c0-2 2-3 5-3s5 1 5 3a5 5 0 0 1-5 5z"/>`,
+  chevronRight:  `<polyline points="9 18 15 12 9 6"/>`,
+  lockKey:       `<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>`,
+};
+function icon(name, size, opts) {
+  size = size || 20;
+  opts = opts || {};
+  const stroke = opts.stroke || "currentColor";
+  const fill = opts.fill || "none";
+  const sw = opts.sw || 1.75;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${ICON_PATHS[name]}</svg>`;
+}
+function carAngle(n, captured) {
+  const color = captured ? "#FFFFFF" : "#8395A7";
+  const op = captured ? 0.92 : 0.45;
+  const style = `width:70%;height:68%;opacity:${op};`;
+  const a = `fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"`;
+  if (n === 1) return `<svg style="${style}" viewBox="0 0 100 80" ${a}><path d="M15 55 L20 35 L35 28 L65 28 L80 35 L85 55 L85 62 L15 62 Z"/><circle cx="28" cy="62" r="6"/><circle cx="72" cy="62" r="6"/><path d="M35 28 L40 40 L60 40 L65 28"/><path d="M22 45 L28 45 M72 45 L78 45"/></svg>`;
+  if (n === 2) return `<svg style="${style}" viewBox="0 0 100 80" ${a}><path d="M18 55 L22 32 L35 26 L65 26 L78 32 L82 55 L82 62 L18 62 Z"/><circle cx="30" cy="62" r="6"/><circle cx="70" cy="62" r="6"/><rect x="35" y="34" width="30" height="14" rx="2"/><path d="M25 42 L32 42 M68 42 L75 42"/></svg>`;
+  if (n === 3) return `<svg style="${style}" viewBox="0 0 120 60" ${a}><path d="M10 45 L18 30 L40 22 L80 22 L92 30 L110 32 L112 45 L10 45 Z"/><circle cx="30" cy="45" r="7"/><circle cx="88" cy="45" r="7"/><path d="M42 22 L48 32 L78 32 L82 22"/><path d="M60 22 L60 32"/></svg>`;
+  if (n === 4) return `<svg style="${style}" viewBox="0 0 120 60" ${a}><g transform="scale(-1,1) translate(-120,0)"><path d="M10 45 L18 30 L40 22 L80 22 L92 30 L110 32 L112 45 L10 45 Z"/><circle cx="30" cy="45" r="7"/><circle cx="88" cy="45" r="7"/><path d="M42 22 L48 32 L78 32 L82 22"/><path d="M60 22 L60 32"/></g></svg>`;
+  if (n === 5) return `<svg style="${style}" viewBox="0 0 120 70" ${a}><path d="M20 55 L25 38 L45 30 L78 28 L92 34 L104 40 L108 55 Z"/><circle cx="36" cy="55" r="6"/><circle cx="92" cy="55" r="6"/><path d="M48 30 L54 42 L85 40 L88 30"/><path d="M102 42 L107 42"/></svg>`;
+  return `<svg style="${style}" viewBox="0 0 120 70" ${a}><g transform="scale(-1,1) translate(-120,0)"><path d="M20 55 L25 38 L45 30 L78 28 L92 34 L104 40 L108 55 Z"/><circle cx="36" cy="55" r="6"/><circle cx="92" cy="55" r="6"/><rect x="48" y="32" width="38" height="12" rx="1"/></g></svg>`;
+}
+
+/* ============ HELPERS ============ */
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function stateOf(n, current) { return n < current ? "done" : n === current ? "active" : "pending"; }
+function haptic() { if (navigator.vibrate) navigator.vibrate(8); }
+
+/* ============ RENDER ============ */
+function render() {
+  const app = document.getElementById("app");
+  if (state.mode === 'analyzing') { app.innerHTML = renderAnalyzing(); return; }
+  if (state.mode === 'results')   { app.innerHTML = renderResults();   return; }
+  if (state.submitted) { app.innerHTML = renderSuccess(); return; }
+  const h = HEROES[state.step];
+  app.innerHTML = `
+    <div class="app">
+      ${renderHeader()}
+      <section class="hero step-enter">
+        <div class="eyebrow">${h.eyebrow}</div>
+        <h1>${h.title}</h1>
+        <p>${h.subtitle}</p>
+      </section>
+      <div class="step-enter">
+        ${state.step === 1 ? renderStep1() : ""}
+        ${state.step === 2 ? renderStep2() : ""}
+        ${state.step === 3 ? renderStep3() : ""}
+        ${state.step === 4 ? renderStep4() : ""}
+        ${state.step === 5 ? renderStep5() : ""}
+      </div>
+    </div>
+    ${renderFooterNav()}
+  `;
+}
+
+function renderHeader() {
+  const parts = [];
+  for (let i = 1; i <= TOTAL_STEPS; i++) {
+    const st = stateOf(i, state.step);
+    parts.push(`<button class="step-dot-wrap" onclick="goTo(${i})" aria-label="Paso ${i}">
+      <div class="step-dot ${st}">${st === 'done' ? icon('check', 14, { sw: 3 }) : i}</div>
+    </button>`);
+    if (i < TOTAL_STEPS) {
+      parts.push(`<div class="step-line ${state.step > i ? 'done' : ''}"></div>`);
+    }
+  }
+  return `
+    <header class="header">
+      <div class="brand-row">
+        <div class="brand-lockup">
+          <img class="brand-logo-img" src="logo.png" alt="La Regional de Seguros"
+               onload="this.classList.add('loaded')"
+               onerror="this.remove()">
+          <div class="brand-fallback">
+            <div class="brand-mark">LR</div>
+            <div>
+              <div class="brand-name">La Regional</div>
+              <div class="brand-sub">Inspección de vehículo</div>
+            </div>
+          </div>
+        </div>
+        <button class="help-btn" aria-label="Ayuda" onclick="openHelp()">${icon("helpCircle", 20)}</button>
+      </div>
+    </header>
+    <div class="app-title-bar">
+      <div class="app-title-icon">${icon("car", 15, { sw: 2 })}</div>
+      <div class="app-title-text">Formulario de Asegurabilidad</div>
+    </div>
+    <div class="stepper-container">
+      <div class="stepper">${parts.join('')}</div>
+    </div>`;
+}
+
+/* ============ PASO 1 · BIENVENIDA ============ */
+function renderStep1() {
+  const k = state.caso;
+  return `
+    <!-- Cotización -->
+    <section class="section" style="padding-bottom:12px">
+      <div class="quote-card">
+        <div class="quote-pill">${icon("fileText", 12, { sw: 2 })} Cotización</div>
+        <div class="quote-number">${esc(k.numeroCotizacion)}</div>
+        <div class="quote-type">${esc(k.tipoPoliza)}</div>
+        <div class="quote-meta">
+          <div class="quote-meta-item">
+            <div class="quote-meta-label">Emitida</div>
+            <div class="quote-meta-value">${esc(k.fechaEmision)}</div>
+          </div>
+          <div class="quote-meta-item">
+            <div class="quote-meta-label">Corredor</div>
+            <div class="quote-meta-value">${esc(k.corredor)}</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Instructivo -->
+    <section class="section" style="padding-top:12px;padding-bottom:12px">
+      <div class="section-head">
+        <h2>Así funciona</h2>
+      </div>
+
+      <div class="time-banner">
+        <div class="time-banner-icon">${icon("clock", 18, { sw: 2 })}</div>
+        <div>
+          <div class="time-banner-title">Tiempo estimado: 3 minutos</div>
+          <div class="time-banner-text">Solo necesitas tomar 6 fotografías de tu vehículo.</div>
+        </div>
+      </div>
+
+      <div class="process-list">
+        ${processStep(1, "Confirma tus datos", "Verifica tu información personal.")}
+        ${processStep(2, "Confirma tu vehículo", "Revisa los datos del auto.")}
+        ${processStep(3, "Toma 6 fotografías", "Captura tu auto desde distintos ángulos.")}
+        ${processStep(4, "Envía tu solicitud", "Autoriza con tu aceptación y listo.")}
+      </div>
+    </section>
+
+    <!-- Protección -->
+    <section class="section" style="padding-top:12px">
+      <div class="trust-box">
+        <div class="trust-icon-wrap">${icon("lockKey", 18, { sw: 2 })}</div>
+        <div>
+          <div class="trust-title">Tu información está protegida</div>
+          <div class="trust-text">La Regional de Seguros usa tu información únicamente para esta inspección, bajo las normas vigentes de protección de datos personales.</div>
+        </div>
+      </div>
+    </section>
+  `;
+}
+function processStep(n, title, subtitle) {
+  return `<div class="process-step">
+    <div class="process-num-circle">${n}</div>
+    <div class="process-body">
+      <div class="process-title">${title}</div>
+      <div class="process-sub">${subtitle}</div>
+    </div>
+    <div class="process-icon-right">${icon("chevronRight", 16, { sw: 2 })}</div>
+  </div>`;
+}
+function dataRow(iconName, label, value) {
+  return `<div class="data-row">
+    <div class="data-icon">${iconName ? icon(iconName, 18, { sw: 2 }) : ""}</div>
+    <div class="data-body">
+      <div class="data-label">${label}</div>
+      <div class="data-value">${value}</div>
+    </div>
+  </div>`;
+}
+
+/* ============ PASO 2 · CLIENTE ============ */
+function renderStep2() {
+  const c = state.cliente;
+  return `
+    <section class="section">
+      <div class="data-card">
+        ${dataRow("user", "Nombre completo", esc(c.nombre))}
+        ${dataRow("fileText", c.tipoId, `<span class="mono">${esc(c.numeroId)}</span>`)}
+        ${dataRow("phone", "Teléfono", `<span class="with-flag"><span class="flag">🇵🇦</span><span class="ccode">+507</span><span class="phone-num">${esc(c.telefono)}</span></span>`)}
+        ${dataRow("mail", "Correo electrónico", esc(c.email))}
+        ${dataRow("mapPin", "Dirección", esc(c.direccion))}
+      </div>
+
+      <div class="data-note">
+        <div class="data-note-icon">${icon("info", 16, { sw: 2 })}</div>
+        <div>¿Hay un error en tus datos? No envíes la inspección y <a onclick="openHelp()">contáctanos</a> para corregirlo.</div>
+      </div>
+    </section>
+  `;
+}
+
+/* ============ PASO 3 · VEHÍCULO ============ */
+function renderStep3() {
+  const v = state.vehiculo;
+  return `
+    <section class="section">
+      <div class="data-card">
+        ${dataRow("car", "Vehículo", `${esc(v.marca)} ${esc(v.modelo)} · ${esc(v.anio)}`)}
+        ${dataRow("key", "Placa", `<span class="mono">${esc(v.placa)}</span>`)}
+        ${dataRow("palette", "Color", esc(v.color))}
+        ${dataRow("fileText", "Chasis (VIN)", `<span class="mono">${esc(v.vin)}</span>`)}
+        ${dataRow("gauge", "Kilometraje", `<span class="mono">${esc(v.kilometraje)} km</span>`)}
+        ${dataRow(null, "Uso del vehículo", esc(v.uso))}
+      </div>
+
+      <div class="data-note">
+        <div class="data-note-icon">${icon("info", 16, { sw: 2 })}</div>
+        <div>¿Algún dato no coincide con tu auto? No envíes la inspección y <a onclick="openHelp()">contáctanos</a> para corregirlo.</div>
+      </div>
+    </section>
+  `;
+}
+
+/* ============ PASO 4 · FOTOS ============ */
+function renderStep4() {
+  const done = state.photos.filter(p => p.status === "done").length;
+  const pct = Math.round((done / state.photos.length) * 100);
+  return `
+    <section class="section">
+      <div class="photo-intro">
+        <div class="photo-intro-icon">${icon("info", 20, { sw: 2 })}</div>
+        <div>
+          <div class="photo-intro-title">Antes de empezar</div>
+          <div class="photo-intro-text">Toma las fotos al aire libre, con buena luz y el auto limpio. Asegúrate de que el vehículo se vea completo en cada foto.</div>
+        </div>
+      </div>
+
+      <div class="photo-grid">
+        ${state.photos.map(p => {
+          const c = p.status === "done";
+          return `<button class="photo-slot ${c?"captured":""}" onclick="togglePhoto(${p.id})">
+            <div class="photo-thumb">
+              ${carAngle(p.id, c)}
+              <div class="photo-badge">${c ? icon("check", 15, { sw: 3 }) : icon("camera", 15)}</div>
+            </div>
+            <div class="photo-caption">
+              <div class="photo-label">${p.label}</div>
+              <div class="${c?"photo-hint done":"photo-hint"}">${c ? icon("check", 11, { sw: 3 }) + " Tomada" : esc(p.hint)}</div>
+            </div>
+          </button>`;
+        }).join("")}
+      </div>
+
+      <div class="progress-card">
+        <div class="progress-count"><span class="big">${done}</span><span class="soft">de ${state.photos.length}</span></div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+        <div class="progress-pct">${pct}%</div>
+      </div>
+    </section>`;
+}
+
+/* ============ PASO 5 · ENVIAR ============ */
+function renderStep5() {
+  const done = state.photos.filter(p => p.status === "done").length;
+  const complete = done === 6;
+  return `
+    <section class="section">
+      <div class="response-card">
+        <div class="response-icon">${icon("clock", 20, { sw: 2 })}</div>
+        <div>
+          <div class="response-title">Respuesta en 24 horas hábiles</div>
+          <div class="response-text">Un ejecutivo de La Regional revisará tu solicitud y te contactará al correo o teléfono registrados.</div>
+        </div>
+      </div>
+
+      ${!complete ? `<div class="warning-box">
+        <div class="warning-icon">${icon("info", 18, { sw: 2 })}</div>
+        <div class="warning-text"><strong style="font-weight:700">Faltan ${6 - done} fotografías.</strong> Debes completar las 6 antes de enviar. <a onclick="goTo(4)">Volver a fotos</a></div>
+      </div>` : ""}
+
+      <div class="section-head" style="margin-top:4px">
+        <h2>Fotografías capturadas</h2>
+        <span class="section-meta">${done} de 6</span>
+      </div>
+      <div class="photo-gallery">
+        ${state.photos.map(p => {
+          const c = p.status === "done";
+          return `<div class="gallery-cell ${c?"done":""}">${carAngle(p.id, c)}<div class="gallery-num">${p.id}</div></div>`;
+        }).join("")}
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>Autorización</h2>
+      </div>
+      <div class="accept-card">
+        <div class="accept-row" onclick="toggleAccept()">
+          <div class="checkbox ${state.accept?"checked":""}">${state.accept ? icon("check", 13, { sw: 3 }) : ""}</div>
+          <div class="accept-text"><strong>Declaro que la información es correcta</strong> y autorizo a La Regional de Seguros a usar mis datos y fotografías para procesar esta inspección, según los <a>términos y condiciones</a> y la <a>política de privacidad</a>.</div>
+        </div>
+      </div>
+    </section>`;
+}
+
+/* ============ FOOTER ============ */
+function renderFooterNav() {
+  const last = state.step === TOTAL_STEPS;
+  const allPhotos = state.photos.filter(p => p.status === "done").length === 6;
+  const canSubmit = last && state.accept && allPhotos;
+  const primaryDisabled = last && !canSubmit;
+
+  let primaryText, primaryIcon, primaryAction;
+  if (last) {
+    primaryText = "Enviar inspección";
+    primaryIcon = icon("sendIcon", 18, { sw: 2 });
+    primaryAction = canSubmit ? "submit()" : "void(0)";
+  } else {
+    primaryText = "Continuar";
+    primaryIcon = icon("arrowRight", 18, { sw: 2 });
+    primaryAction = "next()";
+  }
+
+  return `<div class="footer-nav"><div class="footer-inner">
+    <div class="footer-btns">
+      ${state.step > 1 ? `<button class="btn-back" onclick="back()">${icon("arrowLeft", 17, { sw: 2 })} Atrás</button>` : ""}
+      <button class="btn-primary" ${primaryDisabled ? 'aria-disabled="true" disabled' : ''} onclick="${primaryAction}">
+        ${primaryText}
+        ${primaryIcon}
+      </button>
+    </div>
+    <div class="footer-note">${icon("shield", 13, { sw: 2 })} La Regional de Seguros · Protegemos tus datos</div>
+  </div></div>`;
+}
+
+/* ============ SUCCESS ============ */
+function renderSuccess() {
+  const ref = "LRDS-" + Math.floor(100000 + Math.random() * 900000);
+  const firstName = (state.cliente.nombre || "").split(" ")[0];
+  return `<div class="success">
+    <div class="success-icon">${icon("checkCircle2", 42, { sw: 2 })}</div>
+    <div class="eyebrow">INSPECCIÓN RECIBIDA</div>
+    <h1>¡Gracias, ${esc(firstName)}!</h1>
+    <p>Hemos recibido las fotografías para tu cotización <strong>${esc(state.caso.numeroCotizacion)}</strong>. Un ejecutivo te contactará en las próximas <strong>24 horas hábiles</strong>.</p>
+    <div class="ref-card">
+      <div class="ref-label">Número de referencia</div>
+      <div class="ref-num">${ref}</div>
+      <div class="ref-note">Guárdalo para consultar el estado de tu solicitud.</div>
+    </div>
+    <div class="success-close">Ya puedes cerrar esta ventana.</div>
+    <button class="success-help-link" onclick="openHelp()">
+      ${icon("helpCircle", 15, { sw: 2 })}
+      ¿Necesitas ayuda?
+    </button>
+  </div>`;
+}
+
+/* ============ HANDLERS ============ */
+window.goTo = function(n) {
+  state.step = n; saveState(); render();
+  window.scrollTo({ top: 0, behavior: "smooth" }); haptic();
+};
+window.next = function() { if (state.step < TOTAL_STEPS) window.goTo(state.step + 1); };
+window.back = function() { if (state.step > 1) window.goTo(state.step - 1); };
+
+window.togglePhoto = function(id) {
+  const p = state.photos.find(x => x.id === id);
+  p.status = p.status === "done" ? "pending" : "done";
+  saveState(); render(); haptic();
+};
+window.toggleAccept = function() { state.accept = !state.accept; saveState(); render(); haptic(); };
+
+window.submit = async function() {
+  const allPhotos = state.photos.filter(p => p.status === "done").length === 6;
+  if (!state.accept || !allPhotos) return;
+  haptic();
+  state.mode = 'analyzing';
+  state.analysisProgress = Array(6).fill('pending');
+  state.analysisResults = [];
+  render();
+  window.scrollTo({ top: 0 });
+  await runAnalysis();
+  clearState();
+  state.mode = 'results';
+  render();
+  window.scrollTo({ top: 0 });
+};
+
+/* ============ AI ANALYSIS ============ */
+const PHOTO_TYPES = ['FRONT','REAR','RIGHT_SIDE','LEFT_SIDE','FRONT_DIAGONAL','REAR_DIAGONAL'];
+
+async function analyzePhotoWithAI(photoType, photoLabel, vehicleData) {
+  const prompt = `Eres un sistema de inteligencia artificial especializado en inspección vehicular para compañías aseguradoras. Analiza esta fotografía de vista ${photoType} de un vehículo.
+
+Datos declarados por el asegurado:
+- Marca: ${vehicleData.marca}
+- Modelo: ${vehicleData.modelo}
+- Año: ${vehicleData.anio}
+- Color: ${vehicleData.color}
+- Placa: ${vehicleData.placa}
+- VIN: ${vehicleData.vin}
+
+CONTEXTO: Fotografía de tipo "${photoLabel}" para inspección previa a emisión de póliza (vehículo de ${vehicleData.anio} con ${vehicleData.kilometraje} km).
+
+Genera un análisis de inspección vehicular realista para este tipo de foto. El vehículo puede tener daños cosméticos menores típicos del uso normal. Para fotos de VIN/tablero, analiza el odómetro o número de chasis. Para fotos laterales y frontales/traseras, detecta daños físicos si los hubiera.
+
+Devuelve ÚNICAMENTE este JSON válido, sin texto adicional ni bloques de código markdown:
+{
+  "photoType": "${photoType}",
+  "quality": { "score": 0.0, "status": "VALID", "observation": "" },
+  "vehicleIdentification": {
+    "detectedBrand": "",
+    "detectedModel": "",
+    "estimatedYear": "",
+    "detectedColor": "",
+    "brandMatch": "MATCH",
+    "colorMatch": "MATCH",
+    "yearMatch": "MATCH",
+    "confidenceScore": 0.0,
+    "observation": ""
+  },
+  "damages": [],
+  "extractions": {
+    "plate": { "value": "", "declared": "${vehicleData.placa}", "match": "MATCH" },
+    "vin": { "value": "", "declared": "${vehicleData.vin}", "match": "MATCH" },
+    "odometer": { "value": null, "unit": "km", "declared": ${parseInt(vehicleData.kilometraje.replace(/,/g,'')) || null} }
+  },
+  "fraudSignals": [],
+  "overallSeverity": "NONE",
+  "insurability": {
+    "eligible": true,
+    "decision": "APTO",
+    "reason": "",
+    "recommendation": ""
+  },
+  "observation": ""
+}`;
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  let text = data.content[0].text.trim();
+  // Strip markdown code blocks if present
+  text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/,'').trim();
+  return JSON.parse(text);
+}
+
+async function runAnalysis() {
+  const v = state.vehiculo;
+  for (let i = 0; i < 6; i++) {
+    state.analysisProgress[i] = 'active';
+    render();
+    await new Promise(r => setTimeout(r, 50)); // allow repaint
+    try {
+      const result = await analyzePhotoWithAI(
+        PHOTO_TYPES[i],
+        state.photos[i].label,
+        v
+      );
+      state.analysisResults.push({ ...result, _photoLabel: state.photos[i].label, _photoNum: i+1 });
+      state.analysisProgress[i] = 'done';
+    } catch(e) {
+      console.error('Analysis error photo', i+1, e);
+      state.analysisResults.push({ _error: true, _photoLabel: state.photos[i].label, _photoNum: i+1 });
+      state.analysisProgress[i] = 'error';
+    }
+    render();
+  }
+}
+
+/* ============ RENDER ANALYZING ============ */
+function renderAnalyzing() {
+  const done  = state.analysisProgress.filter(s => s === 'done' || s === 'error').length;
+  const pct   = Math.round((done / 6) * 100);
+
+  const items = state.photos.map((p, i) => {
+    const s = state.analysisProgress[i] || 'pending';
+    const iconContent = s === 'active'
+      ? `<svg class="spin-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>`
+      : s === 'done'   ? icon('check', 16, { sw: 3 })
+      : s === 'error'  ? icon('info', 16, { sw: 2 })
+      : icon('camera', 16, { sw: 1.75 });
+
+    const statusText = s === 'pending' ? 'En espera...'
+      : s === 'active'  ? 'Analizando con IA...'
+      : s === 'done'    ? 'Análisis completado'
+      : 'Error al analizar';
+
+    return `<div class="analyzing-item ${s}">
+      <div class="analyzing-item-icon ${s}">${iconContent}</div>
+      <div class="analyzing-item-body">
+        <div class="analyzing-item-label">${p.label}</div>
+        <div class="analyzing-item-status ${s}">${statusText}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  return `<div class="analyzing-screen step-enter">
+    <div class="analyzing-header">
+      <div><div class="analyzing-ai-badge">${icon('shield', 13, {sw:2.5})} Análisis IA · HK Inspect</div></div>
+      <div class="analyzing-spinner">
+        ${icon('camera', 28, {stroke:'#FFF', sw:1.75})}
+      </div>
+      <div class="analyzing-title">Analizando fotografías</div>
+      <div class="analyzing-subtitle">Claude AI está procesando cada imagen.<br>Esto toma unos segundos por foto.</div>
+    </div>
+
+    <div class="analyzing-list">${items}</div>
+
+    <div class="analyzing-overall-progress">
+      <div class="analyzing-pct-row">
+        <div class="analyzing-pct-label">Progreso total</div>
+        <div class="analyzing-pct-val">${pct}%</div>
+      </div>
+      <div class="analyzing-bar">
+        <div class="analyzing-bar-fill" style="width:${pct}%"></div>
+      </div>
+    </div>
+
+    <div class="analyzing-note">
+      ${icon('shield', 13, {sw:2})}
+      La Regional de Seguros · Análisis confidencial
+    </div>
+  </div>`;
+}
+
+/* ============ RENDER RESULTS ============ */
+function renderResults() {
+  const results = state.analysisResults;
+  const v = state.vehiculo;
+  const ref = "LRDS-" + Math.floor(100000 + Math.random() * 900000);
+
+  // Consolidar decisión: tomar el más restrictivo
+  const decisions = results.map(r => r?.insurability?.decision).filter(Boolean);
+  const overallSevs = results.map(r => r?.overallSeverity).filter(Boolean);
+  const hasError = results.some(r => r?._error);
+
+  let decision = 'APTO';
+  if (decisions.includes('NO_APTO')) decision = 'NO_APTO';
+  else if (decisions.includes('REVISION_MANUAL')) decision = 'REVISION_MANUAL';
+
+  const sevOrder = ['NONE','LEVE','MEDIA','ALTA','CRITICA'];
+  let maxSev = 'NONE';
+  overallSevs.forEach(s => { if (sevOrder.indexOf(s) > sevOrder.indexOf(maxSev)) maxSev = s; });
+
+  const fraudSignals = results.flatMap(r => (r?.fraudSignals || []).map(f => ({...f, _photo: r._photoLabel})));
+  if (fraudSignals.length > 0 && decision !== 'NO_APTO') decision = 'REVISION_MANUAL';
+
+  const decisionClass = decision === 'APTO' ? 'apto' : decision === 'REVISION_MANUAL' ? 'revision' : 'noApto';
+  const decisionLabel = decision === 'APTO' ? '✓ Apto para asegurar' : decision === 'REVISION_MANUAL' ? '⚠ Requiere revisión' : '✗ No apto';
+  const decisionTitle = decision === 'APTO' ? 'Vehículo Apto' : decision === 'REVISION_MANUAL' ? 'Revisión Manual' : 'No Apto';
+
+  // First non-error result for vehicle ID
+  const vehicleId = results.find(r => !r?._error && r?.vehicleIdentification)?.vehicleIdentification;
+
+  // Reason from first insurability with reason
+  const mainReason = results.find(r => r?.insurability?.reason)?.insurability?.reason || '';
+  const mainRecom  = results.find(r => r?.insurability?.recommendation)?.insurability?.recommendation || '';
+
+  /* ---- Vehicle ID card ---- */
+  function matchChip(val) {
+    if (!val) return '';
+    const cls = val.toLowerCase().replace('_','');
+    const lbl = val === 'MATCH' ? '✓ Coincide' : val === 'NO_MATCH' ? '✗ No coincide' : '~ Inconcluso';
+    return `<span class="match-chip ${cls.replace('no_match','no_match').replace('inconclusive','inconclusive')}">${lbl}</span>`;
+  }
+
+  const vehicleIdHtml = vehicleId ? `
+    <div class="vehicle-id-card">
+      <div class="vehicle-id-header">
+        <div class="vehicle-id-col-title">Campo</div>
+        <div class="vehicle-id-col-title">Detectado → Declarado</div>
+      </div>
+      ${[
+        ['Marca', vehicleId.detectedBrand, v.marca, matchChip(vehicleId.brandMatch)],
+        ['Modelo', vehicleId.detectedModel, v.modelo, ''],
+        ['Año', vehicleId.estimatedYear, v.anio, matchChip(vehicleId.yearMatch)],
+        ['Color', vehicleId.detectedColor, v.color, matchChip(vehicleId.colorMatch)],
+      ].map(([field, det, decl, chip]) => `
+        <div class="vehicle-id-row">
+          <div class="vehicle-id-field">${field}</div>
+          <div class="vehicle-id-detected">${esc(det||'—')}</div>
+          <div class="vehicle-id-declared">${esc(decl)}</div>
+          <div>${chip}</div>
+        </div>`).join('')}
+    </div>` : `<div class="data-note"><div class="data-note-icon">${icon('info',14,{sw:2})}</div><div>Identificación no disponible</div></div>`;
+
+  /* ---- Damages per photo ---- */
+  function sevClass(s) {
+    return ({NONE:'sev-none',LEVE:'sev-leve',MEDIA:'sev-media',ALTA:'sev-alta',CRITICA:'sev-critica'})[s] || 'sev-none';
+  }
+
+  const damageCards = results.map((r, i) => {
+    if (r?._error) return `
+      <div class="damage-card">
+        <div class="damage-card-header">
+          <div class="damage-photo-num">${i+1}</div>
+          <div class="damage-photo-label">${r._photoLabel}</div>
+        </div>
+        <div class="damage-card-body">
+          <div class="no-damage-row" style="color:var(--ink-faint);">${icon('info',14,{sw:2})} No se pudo analizar esta foto</div>
+        </div>
+      </div>`;
+
+    const damages = r?.damages || [];
+    const overSev = r?.overallSeverity || 'NONE';
+    const obs = r?.observation || '';
+
+    return `<div class="damage-card">
+      <div class="damage-card-header">
+        <div class="damage-photo-num">${i+1}</div>
+        <div class="damage-photo-label">${r._photoLabel}</div>
+        <span class="sev-chip ${sevClass(overSev)}">${overSev}</span>
+      </div>
+      <div class="damage-card-body">
+        ${damages.length === 0
+          ? `<div class="no-damage-row">${icon('check',14,{sw:3})} Sin daños detectados</div>`
+          : damages.map(d => `
+            <div class="damage-item">
+              <span class="sev-chip ${sevClass(d.severity)}">${d.severity}</span>
+              <div class="damage-info">
+                <div class="damage-type">${esc(d.damageType?.replace(/_/g,' ') || '')}</div>
+                ${d.location ? `<div class="damage-location">${icon('mapPin',11,{sw:2})} ${esc(d.location)}</div>` : ''}
+                ${d.observation ? `<div class="damage-obs">${esc(d.observation)}</div>` : ''}
+              </div>
+              <div class="damage-conf">${d.confidenceScore ? (d.confidenceScore*100).toFixed(0)+'%' : ''}</div>
+            </div>`).join('')
+        }
+        ${obs ? `<div class="damage-obs" style="padding-top:6px;color:var(--ink-faint);font-size:11.5px">${esc(obs)}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  /* ---- Fraud signals ---- */
+  const fraudHtml = fraudSignals.length > 0 ? `
+    <div class="fraud-band">
+      <div class="fraud-band-header">
+        ${icon('info',18,{sw:2.5})}
+        <div class="fraud-band-title">⚠ Señales de fraude detectadas (${fraudSignals.length})</div>
+      </div>
+      ${fraudSignals.map(f => `
+        <div class="fraud-item">
+          <div class="fraud-item-icon">${icon('info',14,{sw:2.5})}</div>
+          <div>
+            <div class="fraud-signal-name">${esc(f.signal?.replace(/_/g,' ')||'')}</div>
+            <div class="fraud-signal-obs">${esc(f.observation||'')} ${f._photo ? `<em>(${esc(f._photo)})</em>` : ''}</div>
+            ${f.confidenceScore ? `<div class="fraud-signal-conf">Confianza: ${(f.confidenceScore*100).toFixed(0)}%</div>` : ''}
+          </div>
+        </div>`).join('')}
+    </div>` : '';
+
+  return `
+    <div class="results-screen step-enter">
+      <!-- Header -->
+      <div class="results-header">
+        <div class="results-header-icon">${icon('shield',16,{sw:2.5,stroke:'#FFF'})}</div>
+        <div>
+          <div class="results-header-title">Resultado de inspección</div>
+          <div class="results-header-sub">${esc(v.marca)} ${esc(v.modelo)} ${esc(v.anio)} · ${esc(ref)}</div>
+        </div>
+      </div>
+
+      <!-- Decision -->
+      <div class="decision-band">
+        <div class="decision-badge ${decisionClass}">${decisionLabel}</div>
+        <div class="decision-main ${decisionClass}">${decisionTitle}</div>
+        ${mainReason ? `<div class="decision-reason">${esc(mainReason)}</div>` : ''}
+        ${mainRecom  ? `<div class="decision-recommendation"><strong>Recomendación:</strong> ${esc(mainRecom)}</div>` : ''}
+      </div>
+
+      <!-- Fraud alerts -->
+      ${fraudHtml}
+
+      <!-- Vehicle ID -->
+      <div class="result-section">
+        <div class="result-section-head">
+          <div class="result-section-head-icon">${icon('car',13,{sw:2})}</div>
+          <div class="result-section-title">Identificación del Vehículo</div>
+        </div>
+        ${vehicleIdHtml}
+      </div>
+
+      <!-- Damages -->
+      <div class="result-section" style="padding-top:0">
+        <div class="result-section-head">
+          <div class="result-section-head-icon">${icon('camera',13,{sw:2})}</div>
+          <div class="result-section-title">Análisis por Fotografía</div>
+        </div>
+        <div class="damages-list">${damageCards}</div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="results-footer">
+      <div class="results-footer-inner">
+        <div style="display:flex;gap:10px">
+          <button class="btn-back" onclick="resetApp()" style="flex:0 0 auto">
+            ${icon('arrowLeft',17,{sw:2})} Reiniciar
+          </button>
+          <button class="btn-primary" onclick="finishInspection()">
+            Finalizar inspección ${icon('checkCircle2',18,{sw:2})}
+          </button>
+        </div>
+        <div class="results-footer-note">${icon('shield',12,{sw:2})} Análisis generado por Claude AI · La Regional de Seguros</div>
+      </div>
+    </div>`;
+}
+
+
+window.openHelp = function() {
+  document.getElementById('help-sheet').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  haptic();
+};
+window.closeHelp = function(e) {
+  if (e && e.target && !e.target.classList.contains('sheet-backdrop') && e.target.id !== 'help-sheet' && e.type === 'click') {
+    if (!e.target.closest('.sheet-close')) return;
+  }
+  document.getElementById('help-sheet').classList.remove('open');
+  document.body.style.overflow = '';
+};
+
+window.resetApp = function() {
+  state.mode = 'form';
+  state.analysisResults = [];
+  state.analysisProgress = [];
+  state.step = 1;
+  state.accept = false;
+  state.photos.forEach(p => p.status = 'pending');
+  clearState(); render(); window.scrollTo({ top: 0 }); haptic();
+};
+
+window.finishInspection = function() {
+  state.submitted = true;
+  state.mode = 'form';
+  clearState(); render(); window.scrollTo({ top: 0 }); haptic();
+};
+
+loadState();
+render();
+</script>
+</body>
+</html>
