@@ -1114,8 +1114,9 @@
 
 <script>
 /* ============ CONFIG ============ */
-// Reemplaza con tu API key de Anthropic (console.anthropic.com)
-const ANTHROPIC_API_KEY = 'COLOCA_TU_API_KEY_AQUI';
+// URL de tu Cloudflare Worker (ver worker.js para instrucciones de deploy)
+// Ejemplo: 'https://hk-inspect-proxy.tu-usuario.workers.dev'
+const WORKER_URL = 'https://hk-inspect-proxy.tight-moon-4883.workers.dev';
 
 /* ============ STATE ============ */
 const STORAGE_KEY = 'lrds_inspect_v5';
@@ -1704,12 +1705,11 @@ Devuelve ÚNICAMENTE este JSON válido, sin texto adicional ni bloques de códig
     content = prompt;
   }
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch(WORKER_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
+      // La API key vive en el Worker, no aquí
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
