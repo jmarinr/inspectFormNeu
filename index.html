@@ -1048,6 +1048,14 @@
 <body>
 <div id="app"></div>
 
+<!-- Hidden camera inputs — one per photo -->
+<input type="file" accept="image/*" capture="environment" id="cam-1" style="display:none" onchange="handleCapture(1,this)">
+<input type="file" accept="image/*" capture="environment" id="cam-2" style="display:none" onchange="handleCapture(2,this)">
+<input type="file" accept="image/*" capture="environment" id="cam-3" style="display:none" onchange="handleCapture(3,this)">
+<input type="file" accept="image/*" capture="environment" id="cam-4" style="display:none" onchange="handleCapture(4,this)">
+<input type="file" accept="image/*" capture="environment" id="cam-5" style="display:none" onchange="handleCapture(5,this)">
+<input type="file" accept="image/*" capture="environment" id="cam-6" style="display:none" onchange="handleCapture(6,this)">
+
 <!-- Bottom sheet de ayuda -->
 <div id="help-sheet" class="sheet-backdrop" onclick="closeHelp(event)">
   <div class="sheet" onclick="event.stopPropagation()">
@@ -1107,7 +1115,7 @@
 <script>
 /* ============ CONFIG ============ */
 // Reemplaza con tu API key de Anthropic (console.anthropic.com)
-const ANTHROPIC_API_KEY = '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';
+const ANTHROPIC_API_KEY = 'COLOCA_TU_API_KEY_AQUI';
 
 /* ============ STATE ============ */
 const STORAGE_KEY = 'lrds_inspect_v5';
@@ -1146,12 +1154,12 @@ const state = {
     kilometraje: "42,180",
   },
   photos: [
-    { id: 1, label: "Frente del auto",    hint: "Vista completa de frente", status: "pending" },
-    { id: 2, label: "Parte trasera",       hint: "Con placa visible",        status: "pending" },
-    { id: 3, label: "Lado derecho",        hint: "Todo el costado",          status: "pending" },
-    { id: 4, label: "Lado izquierdo",      hint: "Todo el costado",          status: "pending" },
-    { id: 5, label: "Esquina delantera",   hint: "Vista diagonal (¾)",       status: "pending" },
-    { id: 6, label: "Esquina trasera",     hint: "Vista diagonal (¾)",       status: "pending" },
+    { id: 1, label: "Frente del auto",    hint: "Vista completa de frente", status: "pending", dataUrl: null, mimeType: null },
+    { id: 2, label: "Parte trasera",       hint: "Con placa visible",        status: "pending", dataUrl: null, mimeType: null },
+    { id: 3, label: "Lado derecho",        hint: "Todo el costado",          status: "pending", dataUrl: null, mimeType: null },
+    { id: 4, label: "Lado izquierdo",      hint: "Todo el costado",          status: "pending", dataUrl: null, mimeType: null },
+    { id: 5, label: "Esquina delantera",   hint: "Vista diagonal (¾)",       status: "pending", dataUrl: null, mimeType: null },
+    { id: 6, label: "Esquina trasera",     hint: "Vista diagonal (¾)",       status: "pending", dataUrl: null, mimeType: null },
   ],
 };
 
@@ -1186,8 +1194,10 @@ const HEROES = {
 /* ============ PERSISTENCE ============ */
 function saveState() {
   try {
+    // No guardamos dataUrl en localStorage — son muy grandes (base64)
+    const photosLight = state.photos.map(p => ({ id: p.id, label: p.label, hint: p.hint, status: p.status, dataUrl: null, mimeType: null }));
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      step: state.step, photos: state.photos, accept: state.accept,
+      step: state.step, photos: photosLight, accept: state.accept,
     }));
   } catch(e) {}
 }
@@ -1457,14 +1467,17 @@ function renderStep4() {
       <div class="photo-grid">
         ${state.photos.map(p => {
           const c = p.status === "done";
-          return `<button class="photo-slot ${c?"captured":""}" onclick="togglePhoto(${p.id})">
-            <div class="photo-thumb">
-              ${carAngle(p.id, c)}
+          const thumbHtml = c && p.dataUrl
+            ? `<img src="${p.dataUrl}" style="width:100%;height:100%;object-fit:cover;display:block;" alt="${p.label}">`
+            : carAngle(p.id, c);
+          return `<button class="photo-slot ${c?"captured":""}" onclick="openCamera(${p.id})">
+            <div class="photo-thumb" style="${c&&p.dataUrl?'overflow:hidden;padding:0;':''}">
+              ${thumbHtml}
               <div class="photo-badge">${c ? icon("check", 15, { sw: 3 }) : icon("camera", 15)}</div>
             </div>
             <div class="photo-caption">
               <div class="photo-label">${p.label}</div>
-              <div class="${c?"photo-hint done":"photo-hint"}">${c ? icon("check", 11, { sw: 3 }) + " Tomada" : esc(p.hint)}</div>
+              <div class="${c?"photo-hint done":"photo-hint"}">${c ? icon("check", 11, { sw: 3 }) + " Tomada · Toca para retomar" : esc(p.hint)}</div>
             </div>
           </button>`;
         }).join("")}
@@ -1504,7 +1517,10 @@ function renderStep5() {
       <div class="photo-gallery">
         ${state.photos.map(p => {
           const c = p.status === "done";
-          return `<div class="gallery-cell ${c?"done":""}">${carAngle(p.id, c)}<div class="gallery-num">${p.id}</div></div>`;
+          const thumb = c && p.dataUrl
+            ? `<img src="${p.dataUrl}" style="width:100%;height:100%;object-fit:cover;display:block;" alt="${p.label}">`
+            : carAngle(p.id, c);
+          return `<div class="gallery-cell ${c?"done":""}" style="${c&&p.dataUrl?'overflow:hidden;padding:0;border-style:solid;':''}">${thumb}<div class="gallery-num">${p.id}</div></div>`;
         }).join("")}
       </div>
     </section>
@@ -1582,10 +1598,29 @@ window.goTo = function(n) {
 window.next = function() { if (state.step < TOTAL_STEPS) window.goTo(state.step + 1); };
 window.back = function() { if (state.step > 1) window.goTo(state.step - 1); };
 
-window.togglePhoto = function(id) {
-  const p = state.photos.find(x => x.id === id);
-  p.status = p.status === "done" ? "pending" : "done";
-  saveState(); render(); haptic();
+window.openCamera = function(id) {
+  // Reset el input para permitir re-seleccionar la misma foto
+  const input = document.getElementById('cam-' + id);
+  if (input) { input.value = ''; input.click(); }
+  haptic();
+};
+
+window.handleCapture = function(id, input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const p = state.photos.find(x => x.id === id);
+    if (!p) return;
+    p.status = 'done';
+    p.dataUrl = e.target.result;          // data:image/jpeg;base64,...
+    p.mimeType = file.type || 'image/jpeg';
+    saveState(); render(); haptic();
+    // Scroll suave al siguiente slot pendiente
+    const next = state.photos.find(x => x.status === 'pending');
+    if (next) setTimeout(() => { const el = document.querySelector('.photo-slot:not(.captured)'); if(el) el.scrollIntoView({behavior:'smooth',block:'center'}); }, 200);
+  };
+  reader.readAsDataURL(file);
 };
 window.toggleAccept = function() { state.accept = !state.accept; saveState(); render(); haptic(); };
 
@@ -1608,7 +1643,7 @@ window.submit = async function() {
 /* ============ AI ANALYSIS ============ */
 const PHOTO_TYPES = ['FRONT','REAR','RIGHT_SIDE','LEFT_SIDE','FRONT_DIAGONAL','REAR_DIAGONAL'];
 
-async function analyzePhotoWithAI(photoType, photoLabel, vehicleData) {
+async function analyzePhotoWithAI(photoType, photoLabel, vehicleData, photo) {
   const prompt = `Eres un sistema de inteligencia artificial especializado en inspección vehicular para compañías aseguradoras. Analiza esta fotografía de vista ${photoType} de un vehículo.
 
 Datos declarados por el asegurado:
@@ -1621,7 +1656,7 @@ Datos declarados por el asegurado:
 
 CONTEXTO: Fotografía de tipo "${photoLabel}" para inspección previa a emisión de póliza (vehículo de ${vehicleData.anio} con ${vehicleData.kilometraje} km).
 
-Genera un análisis de inspección vehicular realista para este tipo de foto. El vehículo puede tener daños cosméticos menores típicos del uso normal. Para fotos de VIN/tablero, analiza el odómetro o número de chasis. Para fotos laterales y frontales/traseras, detecta daños físicos si los hubiera.
+Analiza la imagen con detalle. Detecta daños visibles, verifica identidad del vehículo, y determina asegurabilidad.
 
 Devuelve ÚNICAMENTE este JSON válido, sin texto adicional ni bloques de código markdown:
 {
@@ -1642,7 +1677,7 @@ Devuelve ÚNICAMENTE este JSON válido, sin texto adicional ni bloques de códig
   "extractions": {
     "plate": { "value": "", "declared": "${vehicleData.placa}", "match": "MATCH" },
     "vin": { "value": "", "declared": "${vehicleData.vin}", "match": "MATCH" },
-    "odometer": { "value": null, "unit": "km", "declared": ${parseInt(vehicleData.kilometraje.replace(/,/g,'')) || null} }
+    "odometer": { "value": null, "unit": "km", "declared": ${parseInt((vehicleData.kilometraje||'').replace(/[^0-9]/g,'')) || null} }
   },
   "fraudSignals": [],
   "overallSeverity": "NONE",
@@ -1655,6 +1690,20 @@ Devuelve ÚNICAMENTE este JSON válido, sin texto adicional ni bloques de códig
   "observation": ""
 }`;
 
+  // Si tenemos la foto real, enviarla como imagen; si no, solo texto
+  let content;
+  if (photo && photo.dataUrl) {
+    // Extraer base64 puro (quitar el prefijo "data:image/jpeg;base64,")
+    const base64 = photo.dataUrl.split(',')[1];
+    const mimeType = photo.mimeType || 'image/jpeg';
+    content = [
+      { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
+      { type: 'text', text: prompt }
+    ];
+  } else {
+    content = prompt;
+  }
+
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -1665,15 +1714,13 @@ Devuelve ÚNICAMENTE este JSON válido, sin texto adicional ni bloques de códig
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
       max_tokens: 1024,
-      messages: [{ role: 'user', content: prompt }]
+      messages: [{ role: 'user', content }]
     })
   });
 
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
-  let text = data.content[0].text.trim();
-  // Strip markdown code blocks if present
-  text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/,'').trim();
+  let text = data.content[0].text.trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'').trim();
   return JSON.parse(text);
 }
 
@@ -1682,12 +1729,13 @@ async function runAnalysis() {
   for (let i = 0; i < 6; i++) {
     state.analysisProgress[i] = 'active';
     render();
-    await new Promise(r => setTimeout(r, 50)); // allow repaint
+    await new Promise(r => setTimeout(r, 50));
     try {
       const result = await analyzePhotoWithAI(
         PHOTO_TYPES[i],
         state.photos[i].label,
-        v
+        v,
+        state.photos[i]   // ← foto real con dataUrl
       );
       state.analysisResults.push({ ...result, _photoLabel: state.photos[i].label, _photoNum: i+1 });
       state.analysisProgress[i] = 'done';
