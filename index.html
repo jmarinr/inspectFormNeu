@@ -1129,7 +1129,8 @@ const state = {
   // Nuevo: análisis IA
   mode: 'form',           // 'form' | 'analyzing' | 'results'
   analysisResults: [],    // array de 6 resultados
-  analysisProgress: [],   // 'pending'|'active'|'done'|'error' x6
+  analysisProgress: [],   // 'pending'|'active'|'done'|'error' x6 + consolidación
+  consolidation: null,    // resultado del análisis consolidado
   caso: {
     numeroCotizacion: "LRDS-AUT-2026-04172",
     tipoPoliza: "Póliza de Automóvil Particular",
@@ -1632,6 +1633,7 @@ window.submit = async function() {
   state.mode = 'analyzing';
   state.analysisProgress = Array(6).fill('pending');
   state.analysisResults = [];
+  state.consolidation = null;
   render();
   window.scrollTo({ top: 0 });
   await runAnalysis();
@@ -1642,59 +1644,105 @@ window.submit = async function() {
 };
 
 /* ============ AI ANALYSIS ============ */
-const PHOTO_TYPES = ['FRONT','REAR','RIGHT_SIDE','LEFT_SIDE','FRONT_DIAGONAL','REAR_DIAGONAL'];
 
-async function analyzePhotoWithAI(photoType, photoLabel, vehicleData, photo) {
-  const prompt = `Eres un sistema de inteligencia artificial especializado en inspección vehicular para compañías aseguradoras. Analiza esta fotografía de vista ${photoType} de un vehículo.
-
-Datos declarados por el asegurado:
-- Marca: ${vehicleData.marca}
-- Modelo: ${vehicleData.modelo}
-- Año: ${vehicleData.anio}
-- Color: ${vehicleData.color}
-- Placa: ${vehicleData.placa}
-- VIN: ${vehicleData.vin}
-
-CONTEXTO: Fotografía de tipo "${photoLabel}" para inspección previa a emisión de póliza (vehículo de ${vehicleData.anio} con ${vehicleData.kilometraje} km).
-
-Analiza la imagen con detalle. Detecta daños visibles, verifica identidad del vehículo, y determina asegurabilidad.
-
-Devuelve ÚNICAMENTE este JSON válido, sin texto adicional ni bloques de código markdown:
-{
-  "photoType": "${photoType}",
-  "quality": { "score": 0.0, "status": "VALID", "observation": "" },
-  "vehicleIdentification": {
-    "detectedBrand": "",
-    "detectedModel": "",
-    "estimatedYear": "",
-    "detectedColor": "",
-    "brandMatch": "MATCH",
-    "colorMatch": "MATCH",
-    "yearMatch": "MATCH",
-    "confidenceScore": 0.0,
-    "observation": ""
+// Configuración específica por foto
+const PHOTO_CONFIG = [
+  {
+    type: 'FRENTE',
+    focus: 'Vista frontal del vehículo.',
+    extract: 'Extrae: placa delantera, marca, modelo, color, año estimado. Detecta daños en capó, parachoque, faros delanteros, rejilla.',
+    plateField: true
   },
-  "damages": [],
-  "extractions": {
-    "plate": { "value": "", "declared": "${vehicleData.placa}", "match": "MATCH" },
-    "vin": { "value": "", "declared": "${vehicleData.vin}", "match": "MATCH" },
-    "odometer": { "value": null, "unit": "km", "declared": ${parseInt((vehicleData.kilometraje||'').replace(/[^0-9]/g,'')) || null} }
+  {
+    type: 'TRASERA',
+    focus: 'Vista trasera del vehículo.',
+    extract: 'Extrae: placa trasera (más visible). Detecta daños en maletero, parachoque trasero, luces traseras, defensa.',
+    plateField: true
   },
-  "fraudSignals": [],
-  "overallSeverity": "NONE",
-  "insurability": {
-    "eligible": true,
-    "decision": "APTO",
-    "reason": "",
-    "recommendation": ""
+  {
+    type: 'LATERAL_DERECHO',
+    focus: 'Costado derecho del vehículo.',
+    extract: 'Evalúa estado de puertas, guardafangos, espejo, vidrios laterales y rueda. Detecta rayones, abolladuras, óxido.',
+    plateField: false
   },
-  "observation": ""
-}`;
+  {
+    type: 'LATERAL_IZQUIERDO',
+    focus: 'Costado izquierdo del vehículo.',
+    extract: 'Evalúa estado de puertas, guardafangos, espejo, vidrios laterales y rueda. Detecta rayones, abolladuras, óxido.',
+    plateField: false
+  },
+  {
+    type: 'DIAGONAL_DELANTERA',
+    focus: 'Ángulo diagonal frontal del vehículo (vista ¾ delantera).',
+    extract: 'Evalúa condición general del frente y lateral. Detecta daños en esquinas, rueda delantera, guardafango.',
+    plateField: false
+  },
+  {
+    type: 'DIAGONAL_TRASERA',
+    focus: 'Ángulo diagonal trasero del vehículo (vista ¾ trasera).',
+    extract: 'Evalúa condición general del maletero y lateral trasero. Detecta daños en esquina trasera, rueda trasera.',
+    plateField: false
+  }
+];
 
-  // Si tenemos la foto real, enviarla como imagen; si no, solo texto
+function buildPhotoPrompt(cfg, vehicleData) {
+  const plateInstruction = cfg.plateField
+    ? `"plate":{"value":"(placa visible o vacío)","match":"MATCH|NO_MATCH|INCONCLUSIVE"}`
+    : `"plate":{"value":"N/A","match":"INCONCLUSIVE"}`;
+
+  return `Eres un inspector vehicular IA para aseguradora. Analiza esta fotografía: ${cfg.focus}
+
+Datos declarados:
+Marca:${vehicleData.marca} Modelo:${vehicleData.modelo} Año:${vehicleData.anio} Color:${vehicleData.color} Placa:${vehicleData.placa}
+
+Tarea: ${cfg.extract}
+
+Responde SOLO con este JSON (sin markdown, sin texto extra):
+{"type":"${cfg.type}","quality":{"score":0.0,"ok":true,"issue":""},"vehicle":{"brand":"","model":"","year":"","color":"","match":true},"damages":[{"zone":"","type":"","severity":"LEVE","confidence":0.0}],"plate":{"value":"","match":"MATCH|NO_MATCH|INCONCLUSIVE"},"fraud":{"risk":"BAJO|MEDIO|ALTO","flags":[]},"notes":""}
+
+Reglas:
+- quality.score: 0-1 (1=perfecta). ok=false si es borrosa/oscura/mal encuadrada
+- vehicle.match=true si lo visible coincide con los datos declarados
+- damages: array vacío [] si no hay daños. severity: LEVE|MEDIA|ALTA|CRITICA
+- fraud.risk ALTO solo si hay evidencia clara (marcas de agua, imagen editada, vehículo diferente)
+- notes: máximo 1 oración con observación relevante`;
+}
+
+async function callAI(content) {
+  const res = await fetch(WORKER_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1500,
+      messages: [{ role: 'user', content }]
+    })
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  if (!data.content || !data.content[0]) throw new Error('Empty response');
+  let text = data.content[0].text.trim();
+  // Limpiar markdown si viene
+  text = text.replace(/^```(?:json)?\s*/i,'').replace(/\s*```\s*$/,'').trim();
+  // Extraer el primer objeto JSON completo
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (jsonMatch) text = jsonMatch[0];
+  try {
+    return JSON.parse(text);
+  } catch(e) {
+    // JSON truncado — intentar cerrar y parsear igual
+    const fixed = text.replace(/,\s*$/, '') + '}}';
+    try { return JSON.parse(fixed); } catch(_) {}
+    throw new Error('JSON inválido: ' + e.message);
+  }
+}
+
+async function analyzePhotoWithAI(cfgIndex, photo, vehicleData) {
+  const cfg = PHOTO_CONFIG[cfgIndex];
+  const prompt = buildPhotoPrompt(cfg, vehicleData);
+
   let content;
   if (photo && photo.dataUrl) {
-    // Extraer base64 puro (quitar el prefijo "data:image/jpeg;base64,")
     const base64 = photo.dataUrl.split(',')[1];
     const mimeType = photo.mimeType || 'image/jpeg';
     content = [
@@ -1704,68 +1752,94 @@ Devuelve ÚNICAMENTE este JSON válido, sin texto adicional ni bloques de códig
   } else {
     content = prompt;
   }
+  return await callAI(content);
+}
 
-  const res = await fetch(WORKER_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      // La API key vive en el Worker, no aquí
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 2048,
-      messages: [{ role: 'user', content }]
-    })
-  });
+async function consolidateAnalysis(photoResults, vehicleData) {
+  const summary = photoResults.map((r, i) => {
+    if (r._error) return `Foto ${i+1} (${PHOTO_CONFIG[i].type}): Error al analizar`;
+    return `Foto ${i+1} (${r.type||PHOTO_CONFIG[i].type}): calidad=${r.quality?.score||'?'}, vehiculo_coincide=${r.vehicle?.match}, daños=${r.damages?.length||0}, fraude=${r.fraud?.risk||'?'}, placa=${r.plate?.value||'no visible'}`;
+  }).join('\n');
 
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json();
-  let text = data.content[0].text.trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'').trim();
-  return JSON.parse(text);
+  const prompt = `Eres un underwriter de seguros de autos. Basándote en el análisis de 6 fotografías de inspección, genera un dictamen consolidado.
+
+Vehículo declarado: ${vehicleData.marca} ${vehicleData.modelo} ${vehicleData.anio}, Color:${vehicleData.color}, Placa:${vehicleData.placa}
+
+Resultados por foto:
+${summary}
+
+Responde SOLO con este JSON (sin markdown):
+{"sameVehicle":true,"sameVehicleConfidence":0.0,"overallCondition":"EXCELENTE|BUENO|REGULAR|MALO","totalDamages":0,"maxSeverity":"NONE|LEVE|MEDIA|ALTA|CRITICA","fraudRisk":"BAJO|MEDIO|ALTO","fraudSummary":"","insurability":"APTO|REVISION_MANUAL|NO_APTO","insurabilityReason":"","recommendation":"","concerns":[]}
+
+Reglas:
+- sameVehicle: ¿todas las fotos parecen ser del mismo vehículo?
+- concerns: lista de strings con hallazgos importantes (máx 3)
+- insurabilityReason: 1-2 oraciones explicando la decisión
+- recommendation: acción concreta para el ejecutivo`;
+
+  return await callAI(prompt);
 }
 
 async function runAnalysis() {
   const v = state.vehiculo;
+
+  // Fase 1: analizar las 6 fotos
   for (let i = 0; i < 6; i++) {
     state.analysisProgress[i] = 'active';
     render();
-    await new Promise(r => setTimeout(r, 50));
+    await new Promise(r => setTimeout(r, 30));
     try {
-      const result = await analyzePhotoWithAI(
-        PHOTO_TYPES[i],
-        state.photos[i].label,
-        v,
-        state.photos[i]   // ← foto real con dataUrl
-      );
-      state.analysisResults.push({ ...result, _photoLabel: state.photos[i].label, _photoNum: i+1 });
+      const result = await analyzePhotoWithAI(i, state.photos[i], v);
+      state.analysisResults.push({
+        ...result,
+        _photoLabel: state.photos[i].label,
+        _photoNum: i + 1
+      });
       state.analysisProgress[i] = 'done';
     } catch(e) {
-      console.error('Analysis error photo', i+1, e);
-      state.analysisResults.push({ _error: true, _photoLabel: state.photos[i].label, _photoNum: i+1 });
+      console.error('Error foto', i + 1, e);
+      state.analysisResults.push({
+        _error: true,
+        _errorMsg: e.message,
+        _photoLabel: state.photos[i].label,
+        _photoNum: i + 1
+      });
       state.analysisProgress[i] = 'error';
     }
     render();
   }
+
+  // Fase 2: análisis consolidado
+  state.analysisProgress.push('active'); // índice 6 = consolidación
+  render();
+  try {
+    state.consolidation = await consolidateAnalysis(state.analysisResults, v);
+    state.analysisProgress[6] = 'done';
+  } catch(e) {
+    console.error('Error consolidación', e);
+    state.consolidation = null;
+    state.analysisProgress[6] = 'error';
+  }
+  render();
 }
 
 /* ============ RENDER ANALYZING ============ */
 function renderAnalyzing() {
   const done  = state.analysisProgress.filter(s => s === 'done' || s === 'error').length;
-  const pct   = Math.round((done / 6) * 100);
+  const total = 7; // 6 fotos + consolidación
+  const pct   = Math.round((done / total) * 100);
 
-  const items = state.photos.map((p, i) => {
+  const photoItems = state.photos.map((p, i) => {
     const s = state.analysisProgress[i] || 'pending';
     const iconContent = s === 'active'
       ? `<svg class="spin-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>`
       : s === 'done'   ? icon('check', 16, { sw: 3 })
       : s === 'error'  ? icon('info', 16, { sw: 2 })
       : icon('camera', 16, { sw: 1.75 });
-
     const statusText = s === 'pending' ? 'En espera...'
       : s === 'active'  ? 'Analizando con IA...'
-      : s === 'done'    ? 'Análisis completado'
-      : 'Error al analizar';
-
+      : s === 'done'    ? 'Completado'
+      : 'Error — continuando';
     return `<div class="analyzing-item ${s}">
       <div class="analyzing-item-icon ${s}">${iconContent}</div>
       <div class="analyzing-item-body">
@@ -1775,6 +1849,28 @@ function renderAnalyzing() {
     </div>`;
   }).join('');
 
+  // Paso 7: consolidación
+  const cs = state.analysisProgress[6] || 'pending';
+  const consolidIcon = cs === 'active'
+    ? `<svg class="spin-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>`
+    : cs === 'done'  ? icon('check', 16, { sw: 3 })
+    : cs === 'error' ? icon('info', 16, { sw: 2 })
+    : icon('shield', 16, { sw: 1.75 });
+  const consolidStatus = cs === 'pending' ? 'En espera de las 6 fotos...'
+    : cs === 'active' ? 'Generando dictamen IA...'
+    : cs === 'done'   ? 'Dictamen generado'
+    : 'Error en consolidación';
+
+  const consolidItem = `<div class="analyzing-item ${cs}" style="background:${cs==='done'?'var(--accent-tint)':cs==='active'?'#EEF4FF':''}">
+    <div class="analyzing-item-icon ${cs}" style="${cs==='active'?'background:var(--accent);color:#fff':''}">
+      ${consolidIcon}
+    </div>
+    <div class="analyzing-item-body">
+      <div class="analyzing-item-label" style="font-weight:700">Análisis general · Dictamen</div>
+      <div class="analyzing-item-status ${cs}">${consolidStatus}</div>
+    </div>
+  </div>`;
+
   return `<div class="analyzing-screen step-enter">
     <div class="analyzing-header">
       <div><div class="analyzing-ai-badge">${icon('shield', 13, {sw:2.5})} Análisis IA · HK Inspect</div></div>
@@ -1782,10 +1878,14 @@ function renderAnalyzing() {
         ${icon('camera', 28, {stroke:'#FFF', sw:1.75})}
       </div>
       <div class="analyzing-title">Analizando fotografías</div>
-      <div class="analyzing-subtitle">Claude AI está procesando cada imagen.<br>Esto toma unos segundos por foto.</div>
+      <div class="analyzing-subtitle">Claude AI está procesando cada imagen<br>y generando el dictamen de asegurabilidad.</div>
     </div>
 
-    <div class="analyzing-list">${items}</div>
+    <div class="analyzing-list">
+      ${photoItems}
+      <div style="height:1px;background:var(--line);margin:0"></div>
+      ${consolidItem}
+    </div>
 
     <div class="analyzing-overall-progress">
       <div class="analyzing-pct-row">
@@ -1807,127 +1907,155 @@ function renderAnalyzing() {
 /* ============ RENDER RESULTS ============ */
 function renderResults() {
   const results = state.analysisResults;
+  const con = state.consolidation;
   const v = state.vehiculo;
-  const ref = "LRDS-" + Math.floor(100000 + Math.random() * 900000);
+  const ref = state._ref || (state._ref = "LRDS-" + Math.floor(100000 + Math.random() * 900000));
 
-  // Consolidar decisión: tomar el más restrictivo
-  const decisions = results.map(r => r?.insurability?.decision).filter(Boolean);
-  const overallSevs = results.map(r => r?.overallSeverity).filter(Boolean);
-  const hasError = results.some(r => r?._error);
+  // Decisión final viene del consolidado, si no hay usamos fallback
+  const decision = con?.insurability || 'REVISION_MANUAL';
+  const dCls   = decision === 'APTO' ? 'apto' : decision === 'REVISION_MANUAL' ? 'revision' : 'noApto';
+  const dLabel = decision === 'APTO' ? '✓ Apto para asegurar' : decision === 'REVISION_MANUAL' ? '⚠ Requiere revisión manual' : '✗ No apto';
+  const dTitle = decision === 'APTO' ? 'Vehículo Apto' : decision === 'REVISION_MANUAL' ? 'Revisión Manual' : 'No Apto';
 
-  let decision = 'APTO';
-  if (decisions.includes('NO_APTO')) decision = 'NO_APTO';
-  else if (decisions.includes('REVISION_MANUAL')) decision = 'REVISION_MANUAL';
-
-  const sevOrder = ['NONE','LEVE','MEDIA','ALTA','CRITICA'];
-  let maxSev = 'NONE';
-  overallSevs.forEach(s => { if (sevOrder.indexOf(s) > sevOrder.indexOf(maxSev)) maxSev = s; });
-
-  const fraudSignals = results.flatMap(r => (r?.fraudSignals || []).map(f => ({...f, _photo: r._photoLabel})));
-  if (fraudSignals.length > 0 && decision !== 'NO_APTO') decision = 'REVISION_MANUAL';
-
-  const decisionClass = decision === 'APTO' ? 'apto' : decision === 'REVISION_MANUAL' ? 'revision' : 'noApto';
-  const decisionLabel = decision === 'APTO' ? '✓ Apto para asegurar' : decision === 'REVISION_MANUAL' ? '⚠ Requiere revisión' : '✗ No apto';
-  const decisionTitle = decision === 'APTO' ? 'Vehículo Apto' : decision === 'REVISION_MANUAL' ? 'Revisión Manual' : 'No Apto';
-
-  // First non-error result for vehicle ID
-  const vehicleId = results.find(r => !r?._error && r?.vehicleIdentification)?.vehicleIdentification;
-
-  // Reason from first insurability with reason
-  const mainReason = results.find(r => r?.insurability?.reason)?.insurability?.reason || '';
-  const mainRecom  = results.find(r => r?.insurability?.recommendation)?.insurability?.recommendation || '';
-
-  /* ---- Vehicle ID card ---- */
-  function matchChip(val) {
-    if (!val) return '';
-    const cls = val.toLowerCase().replace('_','');
-    const lbl = val === 'MATCH' ? '✓ Coincide' : val === 'NO_MATCH' ? '✗ No coincide' : '~ Inconcluso';
-    return `<span class="match-chip ${cls.replace('no_match','no_match').replace('inconclusive','inconclusive')}">${lbl}</span>`;
+  // Chips de match
+  function mchip(val) {
+    if (!val || val === 'INCONCLUSIVE') return `<span class="match-chip inconclusive">~ Inconcluso</span>`;
+    if (val === 'MATCH' || val === true) return `<span class="match-chip match">✓ Coincide</span>`;
+    return `<span class="match-chip no_match">✗ No coincide</span>`;
   }
 
-  const vehicleIdHtml = vehicleId ? `
-    <div class="vehicle-id-card">
-      <div class="vehicle-id-header">
-        <div class="vehicle-id-col-title">Campo</div>
-        <div class="vehicle-id-col-title">Detectado → Declarado</div>
-      </div>
-      ${[
-        ['Marca', vehicleId.detectedBrand, v.marca, matchChip(vehicleId.brandMatch)],
-        ['Modelo', vehicleId.detectedModel, v.modelo, ''],
-        ['Año', vehicleId.estimatedYear, v.anio, matchChip(vehicleId.yearMatch)],
-        ['Color', vehicleId.detectedColor, v.color, matchChip(vehicleId.colorMatch)],
-      ].map(([field, det, decl, chip]) => `
-        <div class="vehicle-id-row">
-          <div class="vehicle-id-field">${field}</div>
-          <div class="vehicle-id-detected">${esc(det||'—')}</div>
-          <div class="vehicle-id-declared">${esc(decl)}</div>
-          <div>${chip}</div>
-        </div>`).join('')}
-    </div>` : `<div class="data-note"><div class="data-note-icon">${icon('info',14,{sw:2})}</div><div>Identificación no disponible</div></div>`;
-
-  /* ---- Damages per photo ---- */
-  function sevClass(s) {
+  // Severidad css
+  function sevCls(s) {
     return ({NONE:'sev-none',LEVE:'sev-leve',MEDIA:'sev-media',ALTA:'sev-alta',CRITICA:'sev-critica'})[s] || 'sev-none';
   }
 
-  const damageCards = results.map((r, i) => {
-    if (r?._error) return `
+  // ---- Sección 1: Dictamen consolidado ----
+  const dictamenHtml = con ? `
+    <div class="decision-band">
+      <div class="decision-badge ${dCls}">${dLabel}</div>
+      <div class="decision-main ${dCls}">${dTitle}</div>
+      ${con.insurabilityReason ? `<div class="decision-reason">${esc(con.insurabilityReason)}</div>` : ''}
+      ${con.recommendation ? `<div class="decision-recommendation"><strong>Recomendación:</strong> ${esc(con.recommendation)}</div>` : ''}
+    </div>
+
+    <!-- Métricas rápidas -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 20px 20px">
+      ${[
+        ['Mismo vehículo', con.sameVehicle ? '✓ Confirmado' : '⚠ Inconsistente',
+          con.sameVehicle ? 'var(--ok)' : 'var(--warn)'],
+        ['Condición general', con.overallCondition || '—', 'var(--ink)'],
+        ['Daños detectados', con.totalDamages != null ? `${con.totalDamages} daño(s)` : '—', 'var(--ink)'],
+        ['Riesgo de fraude', con.fraudRisk || '—',
+          con.fraudRisk === 'ALTO' ? 'var(--danger)' : con.fraudRisk === 'MEDIO' ? 'var(--warn)' : 'var(--ok)'],
+      ].map(([lbl, val, color]) => `
+        <div style="background:var(--surface);border-radius:12px;border:1px solid var(--line);padding:12px 14px;box-shadow:var(--shadow-sm)">
+          <div style="font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:4px">${lbl}</div>
+          <div style="font-size:15px;font-weight:700;color:${color}">${val}</div>
+        </div>`).join('')}
+    </div>
+
+    ${con.concerns && con.concerns.length > 0 ? `
+    <div style="margin:0 20px 20px;padding:12px 14px;background:#FBF4E8;border:1px solid var(--warn-line);border-radius:12px">
+      <div style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--warn);margin-bottom:8px">
+        ${icon('info',14,{sw:2})} Hallazgos importantes
+      </div>
+      ${con.concerns.map(c => `<div style="font-size:13px;color:var(--ink-soft);padding:3px 0;line-height:1.4">• ${esc(c)}</div>`).join('')}
+    </div>` : ''}
+
+    ${con.fraudSummary ? `
+    <div style="margin:0 20px 20px;padding:12px 14px;background:#FDF0F0;border:1.5px solid #F5C6C6;border-radius:12px">
+      <div style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--danger);margin-bottom:6px">
+        ${icon('info',14,{sw:2.5})} Análisis de fraude
+      </div>
+      <div style="font-size:13px;color:#7B2020;line-height:1.4">${esc(con.fraudSummary)}</div>
+    </div>` : ''}
+  ` : `
+    <div class="decision-band">
+      <div class="decision-badge revision">⚠ Requiere revisión manual</div>
+      <div class="decision-main revision">Revisión Manual</div>
+      <div class="decision-reason">No se pudo generar el dictamen consolidado. Un ejecutivo debe revisar manualmente.</div>
+    </div>`;
+
+  // ---- Sección 2: Análisis por foto ----
+  const photosHtml = results.map((r, i) => {
+    const label = r._photoLabel || `Foto ${i+1}`;
+    const num = i + 1;
+
+    if (r._error) return `
       <div class="damage-card">
         <div class="damage-card-header">
-          <div class="damage-photo-num">${i+1}</div>
-          <div class="damage-photo-label">${r._photoLabel}</div>
+          <div class="damage-photo-num">${num}</div>
+          <div class="damage-photo-label">${label}</div>
+          <span class="sev-chip sev-none">Error</span>
         </div>
         <div class="damage-card-body">
-          <div class="no-damage-row" style="color:var(--ink-faint);">${icon('info',14,{sw:2})} No se pudo analizar esta foto</div>
+          <div class="no-damage-row" style="color:var(--ink-faint)">
+            ${icon('info',14,{sw:2})} No se pudo analizar${r._errorMsg ? ` · ${esc(r._errorMsg)}` : ''}
+          </div>
         </div>
       </div>`;
 
-    const damages = r?.damages || [];
-    const overSev = r?.overallSeverity || 'NONE';
-    const obs = r?.observation || '';
+    const damages = r.damages || [];
+    const maxSev = damages.reduce((mx, d) => {
+      const order = ['NONE','LEVE','MEDIA','ALTA','CRITICA'];
+      return order.indexOf(d.severity) > order.indexOf(mx) ? d.severity : mx;
+    }, 'NONE');
+
+    const qualityPct = r.quality?.score != null ? Math.round(r.quality.score * 100) : null;
+    const qualityColor = qualityPct == null ? 'var(--ink-faint)'
+      : qualityPct >= 80 ? 'var(--ok)' : qualityPct >= 50 ? 'var(--warn)' : 'var(--danger)';
 
     return `<div class="damage-card">
       <div class="damage-card-header">
-        <div class="damage-photo-num">${i+1}</div>
-        <div class="damage-photo-label">${r._photoLabel}</div>
-        <span class="sev-chip ${sevClass(overSev)}">${overSev}</span>
+        <div class="damage-photo-num">${num}</div>
+        <div class="damage-photo-label">${label}</div>
+        <span class="sev-chip ${sevCls(maxSev)}">${maxSev === 'NONE' ? 'Sin daños' : maxSev}</span>
       </div>
       <div class="damage-card-body">
+
+        <!-- Calidad + Vehículo -->
+        <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+          ${qualityPct != null ? `<div style="font-size:11.5px;padding:3px 8px;background:var(--bg);border-radius:6px;border:1px solid var(--line);color:${qualityColor}">
+            📷 Calidad ${qualityPct}%${r.quality?.issue ? ' · '+esc(r.quality.issue):''}</div>` : ''}
+          <div style="font-size:11.5px;padding:3px 8px;background:var(--bg);border-radius:6px;border:1px solid var(--line)">
+            🚗 ${mchip(r.vehicle?.match)}</div>
+          ${r.plate?.value && r.plate.value !== 'N/A' ? `<div style="font-size:11.5px;padding:3px 8px;background:var(--bg);border-radius:6px;border:1px solid var(--line)">
+            🔢 Placa: ${esc(r.plate.value)} ${mchip(r.plate.match)}</div>` : ''}
+          ${r.fraud?.risk && r.fraud.risk !== 'BAJO' ? `<div style="font-size:11.5px;padding:3px 8px;background:#FDF0F0;border-radius:6px;border:1px solid #F5C6C6;color:var(--danger)">
+            ⚠ Fraude ${esc(r.fraud.risk)}</div>` : ''}
+        </div>
+
+        <!-- Vehículo detectado -->
+        ${r.vehicle?.brand || r.vehicle?.color ? `
+        <div style="font-size:12px;color:var(--ink-soft);margin-bottom:8px;padding:7px 10px;background:var(--accent-tint);border-radius:8px">
+          Detectado: ${[r.vehicle?.brand, r.vehicle?.model, r.vehicle?.year, r.vehicle?.color].filter(Boolean).join(' · ')}
+        </div>` : ''}
+
+        <!-- Daños -->
         ${damages.length === 0
           ? `<div class="no-damage-row">${icon('check',14,{sw:3})} Sin daños detectados</div>`
           : damages.map(d => `
             <div class="damage-item">
-              <span class="sev-chip ${sevClass(d.severity)}">${d.severity}</span>
+              <span class="sev-chip ${sevCls(d.severity)}">${d.severity}</span>
               <div class="damage-info">
-                <div class="damage-type">${esc(d.damageType?.replace(/_/g,' ') || '')}</div>
-                ${d.location ? `<div class="damage-location">${icon('mapPin',11,{sw:2})} ${esc(d.location)}</div>` : ''}
-                ${d.observation ? `<div class="damage-obs">${esc(d.observation)}</div>` : ''}
+                <div class="damage-type">${esc((d.type||'').replace(/_/g,' '))}</div>
+                ${d.zone ? `<div class="damage-location">${esc(d.zone)}</div>` : ''}
               </div>
-              <div class="damage-conf">${d.confidenceScore ? (d.confidenceScore*100).toFixed(0)+'%' : ''}</div>
+              <div class="damage-conf">${d.confidence ? (d.confidence*100).toFixed(0)+'%' : ''}</div>
             </div>`).join('')
         }
-        ${obs ? `<div class="damage-obs" style="padding-top:6px;color:var(--ink-faint);font-size:11.5px">${esc(obs)}</div>` : ''}
+
+        <!-- Señales de fraude de la foto -->
+        ${r.fraud?.flags && r.fraud.flags.length > 0 ? `
+          <div style="margin-top:8px;padding:7px 10px;background:#FDF0F0;border-radius:8px;font-size:12px;color:#7B2020">
+            ${r.fraud.flags.map(f => `⚠ ${esc(f)}`).join(' · ')}
+          </div>` : ''}
+
+        <!-- Notas -->
+        ${r.notes ? `<div style="margin-top:6px;font-size:11.5px;color:var(--ink-faint);line-height:1.4">${esc(r.notes)}</div>` : ''}
       </div>
     </div>`;
   }).join('');
-
-  /* ---- Fraud signals ---- */
-  const fraudHtml = fraudSignals.length > 0 ? `
-    <div class="fraud-band">
-      <div class="fraud-band-header">
-        ${icon('info',18,{sw:2.5})}
-        <div class="fraud-band-title">⚠ Señales de fraude detectadas (${fraudSignals.length})</div>
-      </div>
-      ${fraudSignals.map(f => `
-        <div class="fraud-item">
-          <div class="fraud-item-icon">${icon('info',14,{sw:2.5})}</div>
-          <div>
-            <div class="fraud-signal-name">${esc(f.signal?.replace(/_/g,' ')||'')}</div>
-            <div class="fraud-signal-obs">${esc(f.observation||'')} ${f._photo ? `<em>(${esc(f._photo)})</em>` : ''}</div>
-            ${f.confidenceScore ? `<div class="fraud-signal-conf">Confianza: ${(f.confidenceScore*100).toFixed(0)}%</div>` : ''}
-          </div>
-        </div>`).join('')}
-    </div>` : '';
 
   return `
     <div class="results-screen step-enter">
@@ -1940,33 +2068,16 @@ function renderResults() {
         </div>
       </div>
 
-      <!-- Decision -->
-      <div class="decision-band">
-        <div class="decision-badge ${decisionClass}">${decisionLabel}</div>
-        <div class="decision-main ${decisionClass}">${decisionTitle}</div>
-        ${mainReason ? `<div class="decision-reason">${esc(mainReason)}</div>` : ''}
-        ${mainRecom  ? `<div class="decision-recommendation"><strong>Recomendación:</strong> ${esc(mainRecom)}</div>` : ''}
-      </div>
+      <!-- Dictamen consolidado -->
+      ${dictamenHtml}
 
-      <!-- Fraud alerts -->
-      ${fraudHtml}
-
-      <!-- Vehicle ID -->
-      <div class="result-section">
-        <div class="result-section-head">
-          <div class="result-section-head-icon">${icon('car',13,{sw:2})}</div>
-          <div class="result-section-title">Identificación del Vehículo</div>
-        </div>
-        ${vehicleIdHtml}
-      </div>
-
-      <!-- Damages -->
+      <!-- Análisis por foto -->
       <div class="result-section" style="padding-top:0">
         <div class="result-section-head">
           <div class="result-section-head-icon">${icon('camera',13,{sw:2})}</div>
-          <div class="result-section-title">Análisis por Fotografía</div>
+          <div class="result-section-title">Análisis por fotografía</div>
         </div>
-        <div class="damages-list">${damageCards}</div>
+        <div class="damages-list">${photosHtml}</div>
       </div>
     </div>
 
@@ -1974,11 +2085,11 @@ function renderResults() {
     <div class="results-footer">
       <div class="results-footer-inner">
         <div style="display:flex;gap:10px">
-          <button class="btn-back" onclick="resetApp()" style="flex:0 0 auto">
+          <button class="btn-back" onclick="resetApp()">
             ${icon('arrowLeft',17,{sw:2})} Reiniciar
           </button>
           <button class="btn-primary" onclick="finishInspection()">
-            Finalizar inspección ${icon('checkCircle2',18,{sw:2})}
+            Finalizar ${icon('checkCircle2',18,{sw:2})}
           </button>
         </div>
         <div class="results-footer-note">${icon('shield',12,{sw:2})} Análisis generado por Claude AI · La Regional de Seguros</div>
@@ -2004,9 +2115,11 @@ window.resetApp = function() {
   state.mode = 'form';
   state.analysisResults = [];
   state.analysisProgress = [];
+  state.consolidation = null;
+  state._ref = null;
   state.step = 1;
   state.accept = false;
-  state.photos.forEach(p => p.status = 'pending');
+  state.photos.forEach(p => { p.status = 'pending'; p.dataUrl = null; p.mimeType = null; });
   clearState(); render(); window.scrollTo({ top: 0 }); haptic();
 };
 
