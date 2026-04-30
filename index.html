@@ -754,30 +754,43 @@
   .photo-seq-dot.done   { background: var(--ok); }
   .photo-seq-dot.active { background: var(--accent); }
   .photo-seq-preview {
-    width: 100%; aspect-ratio: 16/9; border-radius: 14px;
-    background: var(--accent); overflow: hidden;
-    margin-bottom: 14px;
+    width: 100%; aspect-ratio: 16/9; max-height: 195px;
+    border-radius: 14px; background: var(--accent); overflow: hidden;
+    margin-bottom: 12px;
     display: flex; align-items: center; justify-content: center;
     box-shadow: var(--shadow-md);
   }
   .photo-seq-card {
     background: var(--surface); border-radius: 14px;
-    border: 1px solid var(--line); padding: 16px;
-    margin-bottom: 12px; box-shadow: var(--shadow-sm);
+    border: 1px solid var(--line); padding: 14px;
+    margin-bottom: 10px; box-shadow: var(--shadow-sm);
   }
-  .photo-seq-card-title { font-size: 15px; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
-  .photo-seq-card-desc  { font-size: 13.5px; color: var(--ink-soft); line-height: 1.45; margin-bottom: 12px; }
-  .photo-seq-bullets    { display: flex; flex-direction: column; gap: 5px; }
-  .photo-seq-bullet     { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--ink-soft); font-weight: 500; }
+  .photo-seq-card-title { font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
+  .photo-seq-card-desc  { font-size: 13px; color: var(--ink-soft); line-height: 1.4; }
   .photo-seq-note {
     display: flex; align-items: center; gap: 6px;
-    font-size: 12px; color: var(--ink-faint); margin-bottom: 14px;
+    font-size: 12px; color: var(--ink-faint); margin-bottom: 8px;
   }
+  /* Botón y nav dentro del footer fijo */
   .photo-seq-btn { width: 100%; margin-bottom: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; }
   .photo-seq-nav { display: flex; gap: 10px; }
-  .photo-seq-nav .btn-back  { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .photo-seq-nav .btn-back    { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; }
   .photo-seq-nav .btn-primary { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; }
   .photo-seq-nav .disabled { opacity: .45; pointer-events: none; }
+  /* Footer fijo paso 4 */
+  .photo-footer {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+    background: rgba(255,255,255,.94);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    border-top: 1px solid var(--line);
+    padding: 12px 20px calc(12px + var(--sab));
+  }
+  .photo-footer-inner { max-width: 460px; margin: 0 auto; }
+  .photo-footer-note {
+    text-align: center; font-size: 11px; color: var(--ink-faint);
+    margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 5px;
+  }
 
   /* ============ ANALYZING SCREEN ============ */
   .analyzing-screen {
@@ -1540,11 +1553,10 @@ function renderStep3() {
 
 /* ============ PASO 4 · FOTOS ============ */
 function renderStep4() {
-  const idx  = state.currentPhotoIdx;            // 0-5
+  const idx  = state.currentPhotoIdx;
   const p    = state.photos[idx];
   const done = state.photos.filter(x => x.status === "done").length;
-  const isFirst = idx === 0;
-  const isLast  = idx === 5;
+  const isLast = idx === 5;
 
   // Dots de progreso
   const dots = state.photos.map((ph, i) => {
@@ -1552,17 +1564,17 @@ function renderStep4() {
     return `<div class="photo-seq-dot ${cls}">${ph.status === "done" ? icon("check", 9, {sw:3}) : ""}</div>`;
   }).join("");
 
-  // Thumbnail o ilustración SVG
+  // Thumbnail o silueta
   const thumbHtml = p.status === "done" && p.dataUrl
     ? `<img src="${p.dataUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;" alt="${p.label}">`
-    : `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:8px;opacity:.7">
+    : `<div style="display:flex;align-items:center;justify-content:center;height:100%;opacity:.75">
         ${carAngle(p.id, false)}
       </div>`;
 
   return `
-    <section class="section">
+    <section class="section" style="padding-bottom:calc(140px + var(--sab))">
 
-      <!-- Header secuencial -->
+      <!-- Header -->
       <div class="photo-seq-header">
         <div class="photo-seq-count">
           <span class="photo-seq-num">Foto ${idx + 1} de 6</span>
@@ -1571,43 +1583,43 @@ function renderStep4() {
         <button class="photo-seq-help" onclick="toggleHelp()">¿Ayuda?</button>
       </div>
 
-      <!-- Barra de progreso dots -->
+      <!-- Dots -->
       <div class="photo-seq-dots">${dots}</div>
 
-      <!-- Ilustración / thumbnail -->
+      <!-- Preview compacto -->
       <div class="photo-seq-preview">${thumbHtml}</div>
 
-      <!-- Card de instrucciones -->
+      <!-- Card instrucciones compacta -->
       <div class="photo-seq-card">
-        <div class="photo-seq-card-title">Vista ${esc(p.label).toLowerCase()} del vehículo</div>
+        <div class="photo-seq-card-title">Vista ${esc(p.label).toLowerCase()}</div>
         <div class="photo-seq-card-desc">${esc(p.hint)}</div>
-        <div class="photo-seq-bullets">
-          <div class="photo-seq-bullet">${icon("check",11,{sw:3,stroke:"var(--ok)"})} Tamaño mínimo 200 KB</div>
-          <div class="photo-seq-bullet">${icon("check",11,{sw:3,stroke:"var(--ok)"})} Imagen nítida</div>
-          <div class="photo-seq-bullet">${icon("check",11,{sw:3,stroke:"var(--ok)"})} Buena iluminación</div>
-        </div>
       </div>
 
-      <!-- Nota cámara -->
+      <!-- Nota -->
       <div class="photo-seq-note">${icon("info",13,{sw:2})} La cámara trasera se activa automáticamente</div>
 
-      <!-- Botón Tomar foto -->
-      <button class="btn-primary photo-seq-btn" onclick="openCamera(${p.id})">
-        ${p.status === "done" ? icon("refreshCw",18,{sw:2}) : icon("camera",18,{sw:2})}
-        ${p.status === "done" ? "Retomar foto" : "Tomar foto"}
-      </button>
+    </section>
 
-      <!-- Navegación -->
-      <div class="photo-seq-nav">
-        <button class="btn-back" onclick="photoNavPrev()">
-          ${icon("arrowLeft",16,{sw:2})} Anterior
+    <!-- Footer fijo — botón tomar foto + navegación -->
+    <div class="photo-footer">
+      <div class="photo-footer-inner">
+        <button class="btn-primary photo-seq-btn" onclick="openCamera(${p.id})">
+          ${p.status === "done" ? icon("refreshCw",18,{sw:2}) : icon("camera",18,{sw:2})}
+          ${p.status === "done" ? "Retomar foto" : "Tomar foto"}
         </button>
-        <button class="${isLast ? "btn-primary" : "btn-back"} ${isLast && done < 6 ? "disabled" : ""}"
-          onclick="photoNavNext()" ${isLast && done < 6 ? "disabled" : ""}>
-          ${isLast ? (done === 6 ? "Revisar" + icon("arrowRight",16,{sw:2}) : `Faltan ${6-done}`) : "Siguiente " + icon("arrowRight",16,{sw:2})}
-        </button>
+        <div class="photo-seq-nav">
+          <button class="btn-back" onclick="photoNavPrev()">
+            ${icon("arrowLeft",16,{sw:2})} Anterior
+          </button>
+          <button class="${isLast ? "btn-primary" : "btn-back"} ${isLast && done < 6 ? "disabled" : ""}"
+            onclick="photoNavNext()" ${isLast && done < 6 ? "disabled" : ""}>
+            ${isLast ? (done === 6 ? "Revisar " + icon("arrowRight",16,{sw:2}) : `Faltan ${6-done}`) : "Siguiente " + icon("arrowRight",16,{sw:2})}
+          </button>
+        </div>
+        <div class="photo-footer-note">${icon("shield",12,{sw:2})} La Regional de Seguros · Protegemos tus datos</div>
       </div>
-    </section>`;
+    </div>`;
+}
 }
 
 /* ============ PASO 5 · ENVIAR ============ */
