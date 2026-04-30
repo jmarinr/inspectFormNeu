@@ -1191,6 +1191,7 @@ const state = {
   consolidation: null,    // resultado del análisis consolidado
   caso: {
     numeroCotizacion: "LRDS-AUT-2026-04172",
+    numeroPoliza: "",                          // se llena cuando la póliza es emitida
     tipoPoliza: "Póliza de Automóvil Particular",
     fechaEmision: "17 abr 2026",
     corredor: "Jeffrey Martínez",
@@ -1211,7 +1212,7 @@ const state = {
     color: "Plata",
     vin: "1HGBH41JXMN109186",
     uso: "Particular",
-    kilometraje: "42,180",
+    vehicleType: "SUV",     // enum: SEDAN | SUV | PICKUP | HATCHBACK | VAN | MINIVAN | TRUCK | MOTORCYCLE | OTHER
   },
   photos: [
     { id: 1, label: "Frontal",           type: "FRONT",     hint: "Colócate frente al vehículo a ~3 metros. La placa delantera y la carrocería completa deben ser visibles.", status: "pending", dataUrl: null, mimeType: null },
@@ -1396,12 +1397,14 @@ function renderHeader() {
 /* ============ PASO 1 · BIENVENIDA ============ */
 function renderStep1() {
   const k = state.caso;
+  const hasPóliza = k.numeroPoliza && k.numeroPoliza.trim() !== '';
   return `
-    <!-- Cotización -->
+    <!-- Cotización / Póliza -->
     <section class="section" style="padding-bottom:12px">
       <div class="quote-card">
-        <div class="quote-pill">${icon("fileText", 12, { sw: 2 })} Cotización</div>
-        <div class="quote-number">${esc(k.numeroCotizacion)}</div>
+        <div class="quote-pill">${icon("fileText", 12, { sw: 2 })} ${hasPóliza ? 'Póliza de Automóvil' : 'Cotización'}</div>
+        <div class="quote-number">${hasPóliza ? esc(k.numeroPoliza) : esc(k.numeroCotizacion)}</div>
+        ${hasPóliza && k.numeroCotizacion ? `<div style="font-size:12px;color:var(--ink-faint);margin-bottom:4px">Cotización: ${esc(k.numeroCotizacion)}</div>` : ''}
         <div class="quote-type">${esc(k.tipoPoliza)}</div>
         <div class="quote-meta">
           <div class="quote-meta-item">
@@ -1494,6 +1497,10 @@ function renderStep2() {
 /* ============ PASO 3 · VEHÍCULO ============ */
 function renderStep3() {
   const v = state.vehiculo;
+  const vehicleTypeLabels = {
+    SEDAN: 'Sedán', SUV: 'SUV', PICKUP: 'Pickup', HATCHBACK: 'Hatchback',
+    VAN: 'Van', MINIVAN: 'Minivan', TRUCK: 'Camión', MOTORCYCLE: 'Motocicleta', OTHER: 'Otro'
+  };
   return `
     <section class="section">
       <div class="data-card">
@@ -1501,7 +1508,7 @@ function renderStep3() {
         ${dataRow("key", "Placa", `<span class="mono">${esc(v.placa)}</span>`)}
         ${dataRow("palette", "Color", esc(v.color))}
         ${dataRow("fileText", "Chasis (VIN)", `<span class="mono">${esc(v.vin)}</span>`)}
-        ${dataRow("gauge", "Kilometraje", `<span class="mono">${esc(v.kilometraje)} km</span>`)}
+        ${dataRow(null, "Tipo de vehículo", esc(vehicleTypeLabels[v.vehicleType] || v.vehicleType))}
         ${dataRow(null, "Uso del vehículo", esc(v.uso))}
       </div>
 
@@ -1821,19 +1828,25 @@ function buildPhotoPrompt(cfg, vehicleData) {
     ? `"plate":{"value":"(placa visible o vacío)","match":"MATCH|NO_MATCH|INCONCLUSIVE"}`
     : `"plate":{"value":"N/A","match":"INCONCLUSIVE"}`;
 
+  const vehicleTypeLabels = {
+    SEDAN:'Sedán',SUV:'SUV',PICKUP:'Pickup',HATCHBACK:'Hatchback',
+    VAN:'Van',MINIVAN:'Minivan',TRUCK:'Camión',MOTORCYCLE:'Motocicleta',OTHER:'Otro'
+  };
+  const tipoVehiculo = vehicleTypeLabels[vehicleData.vehicleType] || vehicleData.vehicleType || '';
+
   return `Eres un inspector vehicular IA para aseguradora. Analiza esta fotografía: ${cfg.focus}
 
 Datos declarados:
-Marca:${vehicleData.marca} Modelo:${vehicleData.modelo} Año:${vehicleData.anio} Color:${vehicleData.color} Placa:${vehicleData.placa}
+Marca:${vehicleData.marca} Modelo:${vehicleData.modelo} Año:${vehicleData.anio} Color:${vehicleData.color} Placa:${vehicleData.placa} Tipo:${tipoVehiculo} Uso:${vehicleData.uso}
 
 Tarea: ${cfg.extract}
 
 Responde SOLO con este JSON (sin markdown, sin texto extra):
-{"type":"${cfg.type}","quality":{"score":0.0,"ok":true,"issue":""},"vehicle":{"brand":"","model":"","year":"","color":"","match":true},"damages":[{"zone":"","type":"","severity":"LEVE","confidence":0.0}],"plate":{"value":"","match":"MATCH|NO_MATCH|INCONCLUSIVE"},"fraud":{"risk":"BAJO|MEDIO|ALTO","flags":[]},"notes":""}
+{"type":"${cfg.type}","quality":{"score":0.0,"ok":true,"issue":""},"vehicle":{"brand":"","model":"","year":"","color":"","type":"","match":true},"damages":[{"zone":"","type":"","severity":"LEVE","confidence":0.0}],"plate":{"value":"","match":"MATCH|NO_MATCH|INCONCLUSIVE"},"fraud":{"risk":"BAJO|MEDIO|ALTO","flags":[]},"notes":""}
 
 Reglas:
 - quality.score: 0-1 (1=perfecta). ok=false si es borrosa/oscura/mal encuadrada
-- vehicle.match=true si lo visible coincide con los datos declarados
+- vehicle.match=true si lo visible coincide con los datos declarados (marca, modelo, color, tipo)
 - damages: array vacío [] si no hay daños. severity: LEVE|MEDIA|ALTA|CRITICA
 - fraud.risk ALTO solo si hay evidencia clara (marcas de agua, imagen editada, vehículo diferente)
 - notes: máximo 1 oración con observación relevante`;
